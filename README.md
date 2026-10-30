@@ -6,7 +6,7 @@ A Raspberry Pi-n futó FieldWork MCP biztonságos, ellenőrizhető fejlesztése 
 
 - **Kész a GitHub-alapú frissítés előkészítő komponense**: `updater/stage_release.py`.
 - A komponens kizárólag rögzített Git commitból, ellenőrzött SHA-256 hashértékekkel tölt le, és privát staging könyvtárba ment. **Nem telepít és nem indít újra semmit.**
-- Elkészült az offline biztonsági tesztcsomag és a GitHub Actions tesztfolyamat. A GitHub Actions futás eredményét külön ellenőrizni kell.
+- Elkészült az offline biztonsági tesztcsomag és a GitHub Actions tesztfolyamat. A GitHub Actions futás eredményét külön ellenőrizni kell.\n- **Új:** csak olvasható Pi-kompatibilitásellenőrzés (`updater/compatibility.py`) és kizárólag memóriában dolgozó, eltérést elutasító Async Stage integráció (`updater/async_overlay.py`). A v0.6.1 csomagból előállított integrált MCP bájtra egyezik az r2 jelölttel.
 - **Nincs még telepítve a Pi-re.** A korábbi r2 telepítés helyesen megállt: a Pi-n telepített `fieldwork_mcp.py` SHA-256 értéke eltért a csomag által elvárttól.
 
 ## Cél
