@@ -38,7 +38,8 @@ def build_isolated_test_env(source: Mapping[str, str]) -> dict[str, str]:
                               "postgresql+psycopg2", "postgres"),
             "TEST_DRIVER_DENIED")
     require(parsed.hostname == "test-db" and port in (None, 5432)
-            and db_name == "/fieldwork_test" and not parsed.fragment,
+            and db_name == "/fieldwork_test" and not parsed.fragment
+            and not parsed.query,
             "TEST_DATABASE_TARGET_DENIED")
     # Keep credentials opaque. Do not log, print or interpolate the URL.
     result = dict(source)
