@@ -16,6 +16,10 @@
     {
       "path": "updater/qualification.py",
       "sha256": "c0f6f4e22b09f22f54b2b8ddc2fd79cc66b33f061968aba9af60fe49aa84a66b"
+    },
+    {
+      "path": "updater/activation_plan.py",
+      "sha256": "1f89706cdf3899fa69e15d9d0f804c940a7dfb02dd68107ca7cb367379aacee5"
     }
   ]
 }
