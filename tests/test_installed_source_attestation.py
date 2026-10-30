@@ -98,6 +98,37 @@ def status():
         self.assertEqual(x['stage_registration_tuple_counts']['fieldwork_stage_inspect'], 2)
         self.assertFalse(x['activation_authorized'])
 
+    def test_file_replaced_after_open_is_rejected(self):
+        original_open = a.os.open
+        changed = [False]
+
+        def replacing_open(name, *args, **kwargs):
+            fd = original_open(name, *args, **kwargs)
+            if name == a.RELATIVE_SOURCE.name and not changed[0]:
+                changed[0] = True
+                self.path.rename(self.path.with_suffix('.old'))
+                self.path.write_text('def malicious(): pass\n')
+            return fd
+
+        with patch.object(a.os, 'open', side_effect=replacing_open):
+            self.assertEqual(self.inspect()['reason'], 'SOURCE_PATH_CHANGED')
+
+    def test_parent_directory_replaced_after_open_is_rejected(self):
+        original_open = a.os.open
+        changed = [False]
+
+        def replacing_open(name, *args, **kwargs):
+            fd = original_open(name, *args, **kwargs)
+            if name == 'v0.6.1' and not changed[0]:
+                changed[0] = True
+                self.path.parent.rename(self.path.parent.with_name('v0.6.1.old'))
+                self.path.parent.mkdir(mode=0o700)
+                self.path.write_text('def replacement(): pass\n')
+            return fd
+
+        with patch.object(a.os, 'open', side_effect=replacing_open):
+            self.assertEqual(self.inspect()['reason'], 'SOURCE_PARENT_CHANGED')
+
     def test_fixed_source_path_denial(self):
         with self.assertRaisesRegex(a.AuditBlocked, 'SOURCE_PATH_DENIED'):
             a._safe_ancestors(self.home / 'another.py', self.home, self.uid)
