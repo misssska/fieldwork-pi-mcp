@@ -7,7 +7,7 @@ A repository jelenleg két **csak előkészítést végző** komponenst tartalma
 1. `bootstrap/bootstrap.py`: egyszeri, felhasználó által indított, SHA-256-tal rögzített GitHub-letöltés. Csak az `~/.local/share/fieldwork-pi-mcp/update-agent` alá ír; nem telepít és nem indít újra MCP-t.
 2. `updater/stage_release.py`: egy commit SHA-hoz és manifest SHA-256-hoz rögzített Async Stage release letöltése. Kizárólag az `~/.local/state/fieldwork-pi-mcp/update-staging` alá ír. Teljes `fieldwork_mcp.py` cseréjét nem fogadja el.
 
-A publikált kiadás fájljai: `release/stage_async.py`, `release/async_overlay.py`, `release/manifest.json`. A `release/async_overlay.py` bájtra egyezik a tesztelt `updater/async_overlay.py` modullal.
+3. `updater/qualification.py`: kizárólag olvasási kompatibilitás-ellenőrzés. A telepített MCP pontos SHA-256 értékét, a staging receiptet és az abban rögzített fájlhash-eket ellenőrzi; a jelölt főfájlt csak memóriában építi fel. A kimenet `STATIC_QUALIFICATION_PASS`, nem telepítési engedély.\n\nA publikált kiadás fájljai: `release/stage_async.py`, `release/async_overlay.py`, `release/manifest.json`. A `release/async_overlay.py` bájtra egyezik a tesztelt `updater/async_overlay.py` modullal.
 
 ## Megbízhatósági modell
 
@@ -15,7 +15,7 @@ A publikált kiadás fájljai: `release/stage_async.py`, `release/async_overlay.
 - A manifest SHA-256 külön, jóváhagyott érték. Minden modulnak egyeznie kell a manifest SHA-256 értékével.
 - A letöltés HTTPS, kizárólag fix `raw.githubusercontent.com/misssska/fieldwork-pi-mcp` útvonalról; átirányítás tiltva.
 - Fájlnév-allowlist, méretkorlát, szintaktikai ellenőrzés, szimbolikus linkek elutasítása.
-- Atomikus staging könyvtár és tartós receipt, semmilyen letöltött Python-kódot nem futtat a stager.
+- Atomikus staging könyvtár és tartós receipt a fájlok SHA-256 értékeivel; a qualification újra ellenőrzi a staged fájlok hashét. A stager semmilyen letöltött Python-kódot nem futtat.
 - A Pi-n telepített forrás nem egyezik az eredeti v0.6.1 alappal. Az `async_overlay.py` kizárólag egyedi, pontosan egyező integrációs pontok mellett módosíthatna egy memóriában lévő másolatot.
 
 ## Kifejezett tiltások
