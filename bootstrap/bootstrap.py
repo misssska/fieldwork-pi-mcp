@@ -23,7 +23,7 @@ import urllib.request
 
 OWNER = 'misssska'
 REPO = 'fieldwork-pi-mcp'
-FILES = ('updater/stage_release.py', 'updater/compatibility.py', 'updater/async_overlay.py', 'updater/qualification.py')
+FILES = ('updater/stage_release.py', 'updater/compatibility.py', 'updater/async_overlay.py', 'updater/qualification.py', 'updater/activation_plan.py')
 COMMIT_RE = re.compile(r'[a-f0-9]{40}\Z')
 HASH_RE = re.compile(r'[a-f0-9]{64}\Z')
 MAX_FILE = 120_000
