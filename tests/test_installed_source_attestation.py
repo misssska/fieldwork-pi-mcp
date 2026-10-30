@@ -134,5 +134,17 @@ def status():
             a._safe_ancestors(self.home / 'another.py', self.home, self.uid)
 
 
+    def test_schemafix_r1_known_artifact_remains_non_authorizing(self):
+        import hashlib
+        fingerprint = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        with patch.object(a, 'PREVIOUSLY_REPORTED_PI_SHA256', fingerprint):
+            result = self.inspect()
+        self.assertEqual(result['status'], 'KNOWN_SCHEMAFIX_R1_ARTIFACT_HASH_ONLY')
+        self.assertFalse(result['source_reviewed'])
+        self.assertFalse(result['activation_authorized'])
+        self.assertEqual(result['next_step'], 'LOCAL_SOURCE_REVIEW_REQUIRED')
+
+
+
 if __name__ == '__main__':
     unittest.main()
