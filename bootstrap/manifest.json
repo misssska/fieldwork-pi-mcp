@@ -12,6 +12,10 @@
     {
       "path": "updater/async_overlay.py",
       "sha256": "0a0591f2414194fcf64e70274ab53a08fceb130f90d3afd650530ea06ab44afd"
+    },
+    {
+      "path": "updater/qualification.py",
+      "sha256": "16fb56d5afdc412360bf4d62261d6794d2029597520392710ca7cbea9877784a"
     }
   ]
 }
