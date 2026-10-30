@@ -14,7 +14,10 @@ from pathlib import Path
 import re
 import sys
 
-from async_overlay import SourceDriftError, overlay
+if __package__:
+    from .async_overlay import SourceDriftError, overlay
+else:
+    from async_overlay import SourceDriftError, overlay
 
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
