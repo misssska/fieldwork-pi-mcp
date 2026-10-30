@@ -30,9 +30,10 @@ class ReleaseIntegrityTests(unittest.TestCase):
             return data
         with tempfile.TemporaryDirectory() as tmp, \
              patch.object(stage_release, 'fetch', side_effect=fetch), \
-             patch.object(stage_release.os, 'geteuid', return_value=1000):
+             patch.object(stage_release.os, 'geteuid', return_value=1000), \
+             patch.object(stage_release.Path, 'home', return_value=Path(tmp)):
             dest = stage_release.stage(COMMIT, hashlib.sha256(manifest).hexdigest(),
-                                       Path(tmp) / 'state')
+                                       Path(tmp) / '.local/state/fieldwork-pi-mcp/update-staging')
             receipt = json.loads((dest / 'receipt.json').read_text())
             self.assertEqual(receipt['status'], 'STAGED_NOT_INSTALLED')
             self.assertEqual(set(receipt['files']), {'stage_async.py', 'async_overlay.py'})
