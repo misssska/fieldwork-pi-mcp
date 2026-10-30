@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "purpose": "fieldwork-pi-mcp-lifecycle-static",
+  "files": [
+    {
+      "path": "release/stage_async.py",
+      "sha256": "add1db45504e53af0663bc7432d893a35819b8fcf6acc057451182c7f1dca964"
+    },
+    {
+      "path": "release/async_overlay.py",
+      "sha256": "0a0591f2414194fcf64e70274ab53a08fceb130f90d3afd650530ea06ab44afd"
+    },
+    {
+      "path": "experimental/stage_inspect.py",
+      "sha256": "f6fa5e6cc5dfbfedba53efd390e26d7f4f5a24589c28635e9c12b6977430c4af"
+    },
+    {
+      "path": "experimental/stage_start_async.py",
+      "sha256": "fa680e5d9ae1a4fff5dbe68220755ba1d8737fc6f69e69e2485e796e1dc33a19"
+    },
+    {
+      "path": "experimental/lifecycle_overlay.py",
+      "sha256": "4e9688957b635519c2afffbd93b2348138e32d6d87b131795a46afe79dfff505"
+    }
+  ]
+}
