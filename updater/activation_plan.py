@@ -12,8 +12,8 @@ from pathlib import Path
 import re
 import stat
 
-HEX64 = re.compile(r'[0-9a-f]{64}\\Z')
-HEX40 = re.compile(r'[0-9a-f]{40}\\Z')
+HEX64 = re.compile(r'[0-9a-f]{64}\Z')
+HEX40 = re.compile(r'[0-9a-f]{40}\Z')
 MAX_SOURCE = 1_000_000
 
 
