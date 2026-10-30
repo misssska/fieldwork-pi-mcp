@@ -8,7 +8,7 @@ A Raspberry Pi-n futó FieldWork MCP biztonságos, reprodukálható frissítési
 - **Frissítés-előkészítő**: [updater/stage_release.py](updater/stage_release.py). Csak az Async Stage modulokat fogadja el, a teljes `fieldwork_mcp.py` lecserélését a manifest elutasítja.
 - **Eltérésérzékeny MCP-módosító**: [updater/async_overlay.py](updater/async_overlay.py). A tényleges telepített forrásra csak akkor alkalmazható, ha minden egyedi integrációs pont pontosan egyezik.\n- **Új: csak olvasható frissítési alkalmassági kapu**: [updater/qualification.py](updater/qualification.py). Ellenőrzi a Pi telepített főfájljának pontos SHA-256 értékét, a staging receiptet, a két kiadásfájlt, az overlay azonosságát, és memóriában előállítja a jelöltet. Semmit nem telepít.
 - **Publikált, hash-ellenőrzött Async Stage kiadás**: [release/manifest.json](release/manifest.json), [release/stage_async.py](release/stage_async.py), [release/async_overlay.py](release/async_overlay.py).
-- **Automatikus CI-tesztek**: [.github/workflows/security-tests.yml](.github/workflows/security-tests.yml), beleértve a bootstrap manifest és a kiadás integritását.
+- **Új, izoláltan tesztelt aktiválási terv**: [updater/activation_plan.py](updater/activation_plan.py). Csak olvasható, SHA-256-ellenőrzött dry-run; nem aktivál, nem indít újra és nem ad telepítési jogosultságot. 12/12 helyi offline teszt PASS. [Biztonsági kapu](docs/ACTIVATION_GATE.md).\n- **Automatikus CI-tesztek**: [.github/workflows/security-tests.yml](.github/workflows/security-tests.yml), beleértve a bootstrap manifest és a kiadás integritását.
 
 ## Ellenőrzött eredmények
 
