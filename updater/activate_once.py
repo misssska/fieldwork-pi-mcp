@@ -188,6 +188,15 @@ def service(operation: str) -> bool:
         return False
 
 
+def privilege() -> bool:
+    # Obtain sudo consent before making ANY MCP filesystem change.
+    try:
+        result = subprocess.run(["sudo", "-v"], timeout=60, check=False)
+        return result.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def ready() -> bool:
     # The existing tunnel-client listens only on the local loopback address.
     import urllib.request
@@ -248,6 +257,7 @@ def activate(commit: str, root: Path, state: Path) -> None:
     require(confirmation == "AKTIVALOM", "LOCAL_APPROVAL_NOT_GIVEN")
     # A separate SSH process is the controller. The tunnel is not the controller.
     require(service("is-active"), "TUNNEL_DIED_BEFORE_ACTIVATION")
+    require(privilege(), "SUDO_APPROVAL_REQUIRED_BEFORE_ANY_WRITE")
     require(sha(owned(root / "fieldwork_mcp.py")) == SOURCE_SHA, "SOURCE_CHANGED_BEFORE_WRITE")
     backup = state / "original-fieldwork_mcp.py"
     write_atomic(backup, owned(root / "fieldwork_mcp.py"), exclusive=True)
