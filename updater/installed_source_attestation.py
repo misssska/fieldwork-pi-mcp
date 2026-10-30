@@ -151,7 +151,7 @@ def inspect(*, home: Path | None = None, uid: int | None = None) -> dict:
     if sha256 == BASELINE_SHA256:
         status = 'KNOWN_BUNDLE_HASH_ONLY'
     elif sha256 == PREVIOUSLY_REPORTED_PI_SHA256:
-        status = 'PREVIOUSLY_OBSERVED_PI_HASH_UNREVIEWED'
+        status = 'KNOWN_SCHEMAFIX_R1_ARTIFACT_HASH_ONLY'
     else:
         status = 'UNKNOWN_SOURCE_HASH'
     counts = {name: found.count(name) for name in sorted(STAGE_TOOL_NAMES)}
