@@ -22,7 +22,7 @@ REPO = "fieldwork-pi-mcp"
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 SAFE_PATH = re.compile(
-    r"(?:fieldwork_mcp|stage_async|stage_manager)\.py"
+    r"(?:stage_async|async_overlay)\.py"
     r"|tests/test_[a-z0-9_]+\.py"
 )
 MAX_MANIFEST = 65536
@@ -79,7 +79,7 @@ def parse_manifest(raw: bytes) -> list[tuple[str, str]]:
         require(path not in seen, "DUPLICATE_FILE_PATH")
         seen.add(path)
         out.append((path, digest))
-    require(any(path == "fieldwork_mcp.py" for path, _ in out), "MAIN_FILE_REQUIRED")
+    require({"stage_async.py", "async_overlay.py"}.issubset(seen), "ASYNC_RELEASE_FILES_REQUIRED")
     return out
 
 
