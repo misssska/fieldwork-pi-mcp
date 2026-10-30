@@ -96,22 +96,23 @@ class LocalApprovalLabTests(unittest.TestCase):
             used = home / ".local/state/fieldwork-pi-mcp/local-approval/used"
             used.mkdir(parents=True, mode=0o700)
             with patch.object(a.Path, "home", return_value=home):
-                result = a.consume_verified(self.proof(), used)
+                result = a.verify_and_consume(signed(self.payload), KEY, expected=EXPECTED, replay_dir=used, now=NOW)
                 self.assertEqual(result["status"], "PROOF_CONSUMED_NO_ACTIVATION")
                 self.assertFalse(result["activation_authorized"])
                 with self.assertRaisesRegex(a.ApprovalDenied, "APPROVAL_REPLAY_DENIED"):
-                    a.consume_verified(self.proof(), used)
+                    a.verify_and_consume(signed(self.payload), KEY, expected=EXPECTED, replay_dir=used, now=NOW)
 
     def test_arbitrary_claim_destination_denied(self):
         with tempfile.TemporaryDirectory() as temp:
             used = Path(temp)
             with self.assertRaisesRegex(a.ApprovalDenied, "REPLAY_DESTINATION_DENIED"):
-                a.consume_verified(self.proof(), used)
+                a.verify_and_consume(signed(self.payload), KEY, expected=EXPECTED, replay_dir=used, now=NOW)
 
     def test_fake_unverified_proof_denied(self):
         with tempfile.TemporaryDirectory() as temp:
-            with self.assertRaisesRegex(a.ApprovalDenied, "UNVERIFIED_PROOF_DENIED"):
-                a.consume_verified({"nonce": "1" * 32}, Path(temp))
+            with self.assertRaisesRegex(a.ApprovalDenied, "TOKEN_SCHEMA_DENIED"):
+                a.verify_and_consume({"nonce": "1" * 32}, KEY, expected=EXPECTED,
+                                     replay_dir=Path(temp), now=NOW)
 
     def test_symlink_replay_directory_denied(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -123,7 +124,7 @@ class LocalApprovalLabTests(unittest.TestCase):
             used.symlink_to(real, target_is_directory=True)
             with patch.object(a.Path, "home", return_value=home):
                 with self.assertRaisesRegex(a.ApprovalDenied, "REPLAY_DIR_UNSAFE"):
-                    a.consume_verified(self.proof(), used)
+                    a.verify_and_consume(signed(self.payload), KEY, expected=EXPECTED, replay_dir=used, now=NOW)
 
 
 if __name__ == "__main__":
