@@ -1,28 +1,30 @@
-# FieldWork Pi MCP
+# FieldWork Pi MCP — ellenőrzött GitHub-frissítések
 
-A Raspberry Pi-n futó FieldWork MCP biztonságos, ellenőrizhető fejlesztése és frissítése.
+A Raspberry Pi-n futó FieldWork MCP biztonságos, reprodukálható frissítési infrastruktúrája.
 
-## Állapot — 2026-10-30
+## Elkészült
 
-- **Kész a GitHub-alapú frissítés előkészítő komponense**: `updater/stage_release.py`.
-- A komponens kizárólag rögzített Git commitból, ellenőrzött SHA-256 hashértékekkel tölt le, és privát staging könyvtárba ment. **Nem telepít és nem indít újra semmit.**
-- Elkészült az offline biztonsági tesztcsomag és a GitHub Actions tesztfolyamat. A GitHub Actions futás eredményét külön ellenőrizni kell.\n- **Új:** csak olvasható Pi-kompatibilitásellenőrzés (`updater/compatibility.py`) és kizárólag memóriában dolgozó, eltérést elutasító Async Stage integráció (`updater/async_overlay.py`). A v0.6.1 csomagból előállított integrált MCP bájtra egyezik az r2 jelölttel.
-- **Nincs még telepítve a Pi-re.** A korábbi r2 telepítés helyesen megállt: a Pi-n telepített `fieldwork_mcp.py` SHA-256 értéke eltért a csomag által elvárttól.
+- **Egyszeri bootstrap**: [bootstrap/bootstrap.py](bootstrap/bootstrap.py). GitHubról, konkrét commitból és SHA-256 ellenőrzéssel tölti le az updater modulokat, kizárólag külön staging könyvtárba. Nem írja felül a futó MCP-t.
+- **Frissítés-előkészítő**: [updater/stage_release.py](updater/stage_release.py). Csak az Async Stage modulokat fogadja el, a teljes `fieldwork_mcp.py` lecserélését a manifest elutasítja.
+- **Eltérésérzékeny MCP-módosító**: [updater/async_overlay.py](updater/async_overlay.py). A tényleges telepített forrásra csak akkor alkalmazható, ha minden egyedi integrációs pont pontosan egyezik.
+- **Publikált, hash-ellenőrzött Async Stage kiadás**: [release/manifest.json](release/manifest.json), [release/stage_async.py](release/stage_async.py), [release/async_overlay.py](release/async_overlay.py).
+- **Automatikus CI-tesztek**: [.github/workflows/security-tests.yml](.github/workflows/security-tests.yml), beleértve a bootstrap manifest és a kiadás integritását.
 
-## Cél
+## Ellenőrzött eredmények
 
-A jövőben ChatGPT által előkészített és ellenőrzött frissítések GitHubon keresztül, egyszeri helyi engedélyezéssel, kézi ZIP-másolás nélkül. Az önfrissítés nem jelent korlátlan távoli shell-hozzáférést vagy automatikus éles telepítést.
+- A bootstrap 10 izolált, offline tesztje: **10/10 PASS** a helyi munkakörnyezetben.
+- A publikált `release/stage_async.py` Git blob hashértéke egyezik az Async Stage r2 eredeti csomagjával.
+- Az r2 csomag korábbi összeállított tesztjei: **71/71 PASS**, de ez **nem** a Pi telepített MCP-forrásának tesztje.
+- A GitHub Actions aktuális futási eredménye nincs megerősítve.
 
-## Biztonsági korlátok
+## Ami még NINCS kész
 
-- Az éles `/opt/fieldwork`, az adatbázis és a produkciós Docker-konténerek érintetlenek maradnak.
-- A meglévő `fieldwork-pi-tunnel.service` megmarad; új tunnel nem szükséges.
-- A Pi-n jelenleg telepített MCP-forrást előbb egyeztetni kell az új verzióval.
-- A letöltés, teszt, telepítés és visszaállítás külön lépések; telepítéshez helyi jóváhagyás kell.
-- Titkok, kulcsok, hitelesítők és ügyféladatok nem kerülhetnek ebbe a publikus repositoryba.
+A Pi-re **nem** telepítettem a bootstrapot vagy az új MCP-eszközöket. A jelenlegi MCP nem engedi a saját host-fájljainak távoli módosítását, és ezt nem kerülöm meg. A telepített `fieldwork_mcp.py` SHA-256: `7d24bcfabdbfb7fd0c4693fdaaaba678d757f46cab86ebe83151b96b77991a04`, amely eltér a korábbi v0.6.1 alapverziótól.
 
-A műszaki terv: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+A GitHubról történő előkészítés **nem egyenlő** az önálló telepítéssel. A helyben jóváhagyható, tesztelő, atomikusan aktiváló és hibánál visszaállító komponens még szükséges. A GitHub-frissítési csatorna teljes MCP-integrációja előtt **ne telepíts kézzel kódot** ebből a repositoryból.
 
-## Következő feladat
+## Védelem
 
-A Pi jelenlegi MCP-forrásának biztonságos, csak olvasható ellenőrzése, majd a helyben jóváhagyható, atomikus telepítő és visszaállító komponens kialakítása. Amíg ez nem készült el és nincs validálva, **ne futtass telepítőt a repositoryból**.
+Az éles `/opt/fieldwork`, az adatbázis, a produkciós Docker és a meglévő `fieldwork-pi-tunnel.service` változatlan. Nincs általános host shell, nincs új tunnel és nincs jóváhagyás nélküli önfrissítés.
+
+Részletek: [Architektúra](docs/ARCHITECTURE.md), [Ellenőrzési napló](docs/TEST_EVIDENCE_2026-10-30.md).
