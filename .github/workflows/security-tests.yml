@@ -1,0 +1,19 @@
+name: MCP updater security tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run offline tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Compile updater
+        run: python -m py_compile updater/stage_release.py
