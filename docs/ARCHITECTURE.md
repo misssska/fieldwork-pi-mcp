@@ -1,27 +1,33 @@
-# FieldWork Pi MCP updater — security architecture
+# FieldWork Pi MCP — biztonságos GitHub-frissítés
 
-## Current state
+## Jelenlegi, ellenőrizhető határ
 
-This repository currently contains a **download-and-stage component**, not an unattended installer. It cannot modify the running MCP, the existing tunnel, or production FieldWork. Do not advertise it as deployed to the Pi.
+A repository jelenleg két **csak előkészítést végző** komponenst tartalmaz:
 
-## Trust and release model
+1. `bootstrap/bootstrap.py`: egyszeri, felhasználó által indított, SHA-256-tal rögzített GitHub-letöltés. Csak az `~/.local/share/fieldwork-pi-mcp/update-agent` alá ír; nem telepít és nem indít újra MCP-t.
+2. `updater/stage_release.py`: egy commit SHA-hoz és manifest SHA-256-hoz rögzített Async Stage release letöltése. Kizárólag az `~/.local/state/fieldwork-pi-mcp/update-staging` alá ír. Teljes `fieldwork_mcp.py` cseréjét nem fogadja el.
 
-1. Developer prepares an MCP release in GitHub with a JSON manifest containing relative allowlisted file names and SHA-256 digests.
-2. A release is identified by an **immutable 40-character commit SHA**, and its manifest digest is approved out-of-band.
-3. The stager downloads only from `raw.githubusercontent.com/misssska/fieldwork-pi-mcp/<commit>/release/...`. It rejects redirects, extra manifest fields, traversal paths, symlink staging paths, hash mismatches and unexpected code.
-4. It writes only to the user's private `~/.local/state/fieldwork-pi-mcp/update-staging` directory. **It never executes downloaded code.**
-5. A future separate local executor must verify the stage receipt, exact installed-source SHA, isolated test evidence, backup/rollback plan, and an explicit one-time local approval **before** replacing any MCP files. That executor is **not yet implemented or installed**.
+A publikált kiadás fájljai: `release/stage_async.py`, `release/async_overlay.py`, `release/manifest.json`. A `release/async_overlay.py` bájtra egyezik a tesztelt `updater/async_overlay.py` modullal.
 
-## Non-negotiable boundaries
+## Megbízhatósági modell
 
-- No remote shell exposed through MCP.
-- No automatic production deployment, and no access to `/opt/fieldwork`, production Docker volumes or database.
-- No unattended update or restart.
-- No private keys, passwords, environment files, API tokens or customer data in this public repository.
-- Never replace a live MCP source file solely by changing a hard-coded expected hash.
-- The existing `fieldwork-pi-tunnel.service` remains the only tunnel; no second tunnel.
-- Candidate changes must preserve existing behavior and be tested against the actual installed Pi source, not an assumed baseline.
+- Csak 40 karakteres, változtathatatlan Git commit SHA elfogadott.
+- A manifest SHA-256 külön, jóváhagyott érték. Minden modulnak egyeznie kell a manifest SHA-256 értékével.
+- A letöltés HTTPS, kizárólag fix `raw.githubusercontent.com/misssska/fieldwork-pi-mcp` útvonalról; átirányítás tiltva.
+- Fájlnév-allowlist, méretkorlát, szintaktikai ellenőrzés, szimbolikus linkek elutasítása.
+- Atomikus staging könyvtár és tartós receipt, semmilyen letöltött Python-kódot nem futtat a stager.
+- A Pi-n telepített forrás nem egyezik az eredeti v0.6.1 alappal. Az `async_overlay.py` kizárólag egyedi, pontosan egyező integrációs pontok mellett módosíthatna egy memóriában lévő másolatot.
 
-## Next milestone
+## Kifejezett tiltások
 
-Obtain a trustworthy, redacted snapshot of the installed MCP source and compare its SHA-256 with `7d24bcfabdbfb7fd0c4693fdaaaba678d757f46cab86ebe83151b96b77991a04`. Then implement a separately approved local executor with atomic activation, restart health checks, persistent logs and rollback. Only after that can GitHub-based remote update requests replace ZIP/manual installs.
+- Nincs általános távoli host shell.
+- Nincs jóváhagyás nélküli aktiválás, telepítés vagy tunnel restart.
+- Nincs hozzáférés az éles `/opt/fieldwork` forráshoz, adatbázishoz vagy Docker-volume-okhoz.
+- A `fieldwork-pi-tunnel.service` az egyetlen alagút, újat nem hozunk létre.
+- A publikus repositoryba nem kerülnek jelszavak, tokenek, privát kulcsok, konfigurációs titkok vagy ügyféladatok.
+
+## Hiányzó aktiválási kapu
+
+Az előkészített kód **nem aktív a Pi-n**. Következő szükséges lépések: a Pi tényleges MCP-forrásának helyben ellenőrzött összevetése; teljes izolált teszt; egyszeri helyi jóváhagyással telepíthető, atomikus és visszaállítható MCP-aktiváló; ezt követően korlátozott MCP staging/status végpontok. A jelenlegi csomag még nem helyettesíti ezt.
+
+A bootstrap helyi, offline tesztjei: 10/10 PASS. A GitHub Actions futási eredménye nincs igazolva.
