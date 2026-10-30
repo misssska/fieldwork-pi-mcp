@@ -32,6 +32,8 @@ class ReleaseBuilderTests(unittest.TestCase):
         self.mocks = ExitStack()
         self.addCleanup(self.mocks.close)
         self.mocks.enter_context(patch.object(
+            b, 'PINNED_MANIFEST_SHA256', MANIFEST_SHA))
+        self.mocks.enter_context(patch.object(
             b.schemafix_lineage, 'SCHEMAFIX_SHA', b.sha(ORIGINAL)))
         self.mocks.enter_context(patch.object(
             b.schemafix_lineage, 'LIFECYCLE_SCHEMAFIX_SHA', b.sha(CANDIDATE)))
@@ -73,6 +75,10 @@ class ReleaseBuilderTests(unittest.TestCase):
         one, _ = self.build()
         two, _ = self.build()
         self.assertEqual(one, two)
+
+    def test_untrusted_manifest_denied_even_if_syntactically_valid(self):
+        with self.assertRaisesRegex(b.BundleRejected, 'UNTRUSTED_RELEASE_MANIFEST'):
+            self.build(expected_manifest_sha256='a' * 64)
 
     def test_source_drift_denied(self):
         with self.assertRaisesRegex(b.BundleRejected, 'SCHEMAFIX_SOURCE_HASH_DENIED'):
