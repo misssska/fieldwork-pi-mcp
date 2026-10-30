@@ -89,12 +89,13 @@ def _safe_dir(path: Path) -> None:
             "REPLAY_DIR_PERMISSIONS_DENIED")
 
 
-def consume_verified(proof: dict, replay_dir: Path) -> dict:
-    """One-use claim in a trusted, pre-created private directory.
+def verify_and_consume(token: dict, key: bytes, *, expected: dict,
+                       replay_dir: Path, now: int | None = None) -> dict:
+    """Verify MAC and claim the nonce in one call; still never activates.
 
-    Calling this consumes a proof, NOT permission to activate. The issuer and
-    activation adapter are deliberately absent from this repository.
+    The issuer and activation adapter are deliberately absent.
     """
+    proof = verify(token, key, expected=expected, now=now)
     require(type(proof) is dict and set(proof) == {
         "status", "nonce", "expires_at", "activation_authorized",
     } and proof["status"] == "VALID_LOCAL_PROOF_NOT_CONSUMED"
