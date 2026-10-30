@@ -132,7 +132,8 @@ def stage(commit: str, manifest_sha256: str, state: Path) -> Path:
             output.chmod(0o600)
         with (temp / "receipt.json").open("x", encoding="utf-8") as handle:
             json.dump({"commit": commit, "manifest_sha256": manifest_sha256,
-                       "files": [p for p, _ in blobs], "status": "STAGED_NOT_INSTALLED"}, handle)
+                       "files": [p for p, _ in blobs],
+                       "file_sha256": dict(files), "status": "STAGED_NOT_INSTALLED"}, handle)
             handle.flush()
             os.fsync(handle.fileno())
         (temp / "receipt.json").chmod(0o600)
