@@ -53,6 +53,12 @@ class TestDbEnvTests(unittest.TestCase):
         with self.assertRaisesRegex(TestEnvironmentDenied, "TEST_DATABASE_TARGET_DENIED"):
             self.build()
 
+    def test_query_override_denied(self):
+        self.original["TEST_DATABASE_URL"] = (
+            "postgresql://u:p@test-db/fieldwork_test?application_name=unexpected")
+        with self.assertRaisesRegex(TestEnvironmentDenied, "TEST_DATABASE_TARGET_DENIED"):
+            self.build()
+
     def test_non_postgres_driver_denied(self):
         self.original["TEST_DATABASE_URL"] = "sqlite:///fieldwork_test"
         with self.assertRaisesRegex(TestEnvironmentDenied, "TEST_DRIVER_DENIED"):
