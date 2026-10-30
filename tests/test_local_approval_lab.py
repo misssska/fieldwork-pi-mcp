@@ -114,6 +114,32 @@ class LocalApprovalLabTests(unittest.TestCase):
                 a.verify_and_consume({"nonce": "1" * 32}, KEY, expected=EXPECTED,
                                      replay_dir=Path(temp), now=NOW)
 
+    def test_bad_signature_cannot_consume_nonce(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            used = home / ".local/state/fieldwork-pi-mcp/local-approval/used"
+            used.mkdir(parents=True, mode=0o700)
+            token = signed(self.payload)
+            token["mac"] = "0" * 64
+            with patch.object(a.Path, "home", return_value=home):
+                with self.assertRaisesRegex(a.ApprovalDenied, "SIGNATURE_DENIED"):
+                    a.verify_and_consume(token, KEY, expected=EXPECTED,
+                                         replay_dir=used, now=NOW)
+            self.assertEqual(list(used.iterdir()), [])
+
+    def test_symlink_replay_parent_denied(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            real = home / "real"
+            (real / "used").mkdir(parents=True, mode=0o700)
+            link = home / ".local/state/fieldwork-pi-mcp/local-approval"
+            link.parent.mkdir(parents=True)
+            link.symlink_to(real, target_is_directory=True)
+            with patch.object(a.Path, "home", return_value=home):
+                with self.assertRaisesRegex(a.ApprovalDenied, "REPLAY_DIR_UNSAFE"):
+                    a.verify_and_consume(signed(self.payload), KEY, expected=EXPECTED,
+                                         replay_dir=link / "used", now=NOW)
+
     def test_symlink_replay_directory_denied(self):
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp)
