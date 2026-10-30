@@ -14,10 +14,10 @@ import re
 # Mirrors the Pi MCP snapshot exclusion rule for sensitive filenames.
 # Never include excluded source modules in the generic photo-test snapshot.
 DENY_FILE = re.compile(
-    r'(?i)(^\\.env(?:\\.|$)|secret|password|credential|'
+    r'(?i)(^\.env(?:\.|$)|secret|password|credential|'
     r'(?:^|[._-])token(?:[._-]|$)|(?:^|[._-])key(?:[._-]|$)|'
-    r'\\.pem$|\\.p12$|\\.pfx$|\\.crt$|\\.sqlite|\\.db$|'
-    r'\\.log$|id_rsa|id_ed25519|\\.bak$|\\.dump$)'
+    r'\.pem$|\.p12$|\.pfx$|\.crt$|\.sqlite|\.db$|'
+    r'\.log$|id_rsa|id_ed25519|\.bak$|\.dump$)'
 )
 
 
