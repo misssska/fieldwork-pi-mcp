@@ -170,7 +170,7 @@ class ReleaseBuilderTests(unittest.TestCase):
 
     def test_wrong_manifest_pin_denied(self):
         packed, _ = self.build()
-        with self.assertRaisesRegex(b.BundleRejected, 'RELEASE_RECORD_DENIED'):
+        with self.assertRaisesRegex(b.BundleRejected, 'UNTRUSTED_RELEASE_MANIFEST'):
             b.verify(packed, expected_manifest_sha256='4' * 64)
 
     def test_duplicate_member_denied(self):
