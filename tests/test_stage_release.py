@@ -1,4 +1,4 @@
-"""Offline tests for the release staging security boundary."""
+"""Offline tests for the Async Stage release staging security boundary."""
 import hashlib
 import json
 from pathlib import Path
@@ -9,30 +9,33 @@ from unittest.mock import patch
 from updater import stage_release as sr
 
 COMMIT = "a" * 40
-MAIN = b"def main():\n    return 1\n"
-SHA = hashlib.sha256(MAIN).hexdigest()
+SOURCES = {
+    "stage_async.py": b"def request(args):\n    return {}\n",
+    "async_overlay.py": b"def overlay(source):\n    return source\n",
+}
+FILES = [
+    {"path": path, "sha256": hashlib.sha256(source).hexdigest()}
+    for path, source in SOURCES.items()
+]
 
 
 def manifest(paths=None):
-    return json.dumps({"schema": 1, "files": paths or [
-        {"path": "fieldwork_mcp.py", "sha256": SHA}
-    ]}).encode()
+    return json.dumps({"schema": 1, "files": FILES if paths is None else paths}).encode()
 
 
 class ManifestTests(unittest.TestCase):
     def test_valid(self):
-        self.assertEqual(sr.parse_manifest(manifest()), [("fieldwork_mcp.py", SHA)])
+        self.assertEqual({p for p, _ in sr.parse_manifest(manifest())}, set(SOURCES))
 
     def test_traversal_denied(self):
         with self.assertRaisesRegex(sr.StageError, "UNSAFE_FILE_PATH"):
-            sr.parse_manifest(manifest([{"path": "../fieldwork_mcp.py", "sha256": SHA}]))
+            sr.parse_manifest(manifest([
+                {"path": "../stage_async.py", "sha256": FILES[0]["sha256"]}, FILES[1]
+            ]))
 
     def test_duplicate_denied(self):
         with self.assertRaisesRegex(sr.StageError, "DUPLICATE_FILE_PATH"):
-            sr.parse_manifest(manifest([
-                {"path": "fieldwork_mcp.py", "sha256": SHA},
-                {"path": "fieldwork_mcp.py", "sha256": SHA},
-            ]))
+            sr.parse_manifest(manifest([FILES[0], FILES[0], FILES[1]]))
 
     def test_unknown_keys_denied(self):
         with self.assertRaisesRegex(sr.StageError, "INVALID_MANIFEST_KEYS"):
@@ -40,7 +43,19 @@ class ManifestTests(unittest.TestCase):
 
     def test_bad_hash_denied(self):
         with self.assertRaisesRegex(sr.StageError, "INVALID_FILE_HASH"):
-            sr.parse_manifest(manifest([{"path": "fieldwork_mcp.py", "sha256": "bad"}]))
+            sr.parse_manifest(manifest([
+                {"path": "stage_async.py", "sha256": "bad"}, FILES[1]
+            ]))
+
+    def test_full_mcp_replacement_denied(self):
+        with self.assertRaisesRegex(sr.StageError, "UNSAFE_FILE_PATH"):
+            sr.parse_manifest(manifest([
+                {"path": "fieldwork_mcp.py", "sha256": FILES[0]["sha256"]}, FILES[1]
+            ]))
+
+    def test_overlay_required(self):
+        with self.assertRaisesRegex(sr.StageError, "ASYNC_RELEASE_FILES_REQUIRED"):
+            sr.parse_manifest(manifest([FILES[0]]))
 
 
 class StageTests(unittest.TestCase):
@@ -48,14 +63,18 @@ class StageTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.state = Path(self.temp.name) / "state"
+        self.uid_patch = patch.object(sr.os, "geteuid", return_value=1000)
+        self.uid_patch.start()
+        self.addCleanup(self.uid_patch.stop)
 
     def fake_fetch(self, commit, path, limit):
-        return manifest() if path == "release/manifest.json" else MAIN
+        return manifest() if path == "release/manifest.json" else SOURCES[path.removeprefix("release/")]
 
     def test_stage_only(self):
         with patch.object(sr, "fetch", side_effect=self.fake_fetch):
             dest = sr.stage(COMMIT, hashlib.sha256(manifest()).hexdigest(), self.state)
-        self.assertEqual((dest / "fieldwork_mcp.py").read_bytes(), MAIN)
+        for name, content in SOURCES.items():
+            self.assertEqual((dest / name).read_bytes(), content)
         self.assertEqual(json.loads((dest / "receipt.json").read_text())["status"],
                          "STAGED_NOT_INSTALLED")
 
