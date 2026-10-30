@@ -79,6 +79,17 @@ class QualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(q.QualificationError, "STAGE_CONTENT_HASH_MISMATCH"):
             q.qualify(COMMIT, MANIFEST, self.hash)
 
+    def test_extension_tamper_denied(self):
+        (self.stage / "stage_async.py").write_text("x = 1\n")
+        with self.assertRaisesRegex(q.QualificationError, "STAGE_CONTENT_HASH_MISMATCH"):
+            q.qualify(COMMIT, MANIFEST, self.hash)
+
+    def test_missing_hash_receipt_denied(self):
+        del self.receipt["file_sha256"]
+        self.write_receipt()
+        with self.assertRaisesRegex(q.QualificationError, "STAGE_RECEIPT_SCHEMA_DENIED"):
+            q.qualify(COMMIT, MANIFEST, self.hash)
+
     def test_symlink_denied(self):
         target = self.stage / "stage_async.py"
         target.unlink()
