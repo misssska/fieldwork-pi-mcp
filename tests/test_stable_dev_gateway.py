@@ -18,8 +18,8 @@ def receipt(project='fieldwork-parity-m5', port=18085, db='dev-db-v1', auth='dev
 class GatewayTests(unittest.TestCase):
     def test_stable_port_and_exact_host(self):
         plan = g.plan_switch(receipt())
-        self.assertEqual(plan['stable_origin'], 'http://192.168.22.13:18080')
-        self.assertEqual(plan['gateway_bind'], '192.168.22.13:18080:8080')
+        self.assertEqual(plan['stable_origin'], 'http://192.168.22.13:18090')
+        self.assertEqual(plan['gateway_bind'], '192.168.22.13:18090:8080')
         self.assertIn('proxy_pass http://192.168.22.13:18085;', plan['nginx_config'])
         self.assertFalse(plan['activated'])
         self.assertFalse(plan['production_modified'])
@@ -45,7 +45,7 @@ class GatewayTests(unittest.TestCase):
                 g.plan_switch({**receipt(), 'bind_ip': host})
 
     def test_production_and_gateway_and_stage_ports_denied(self):
-        for port in (8080, 18080, 18081, 80, 443, 19000, -1, '18085', True):
+        for port in (8080, 18090, 18081, 80, 443, 19000, -1, '18085', True):
             with self.subTest(port=port), self.assertRaisesRegex(g.GatewayDenied, 'TARGET_PORT_DENIED'):
                 g.plan_switch({**receipt(), 'port': port})
 
