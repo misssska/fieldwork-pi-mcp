@@ -8,7 +8,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from updater import artifact_inbox as inbox
+if __package__:
+    from . import artifact_inbox as inbox
+else:
+    import artifact_inbox as inbox
 
 HEX32 = re.compile(r"[0-9a-f]{32}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
