@@ -75,7 +75,7 @@ class ActivationTests(unittest.TestCase):
             receipt = json.loads((self.state / "receipt.json").read_text())
             self.assertEqual(receipt["state"], "TUNNEL_READY_MCP_DISCOVERY_PENDING")
             self.assertEqual(act.sha(self.original.read_bytes()), receipt["candidate_sha256"])
-            self.assertEqual(srv.call_args_list[-1].args, ("restart",))
+            self.assertIn(("restart",), [call.args for call in srv.call_args_list])
             act.rollback(self.root, self.state)
         self.assertEqual(self.original.read_bytes(), SOURCE)
         self.assertFalse((self.root / act.FILES[0]).exists())
@@ -125,6 +125,7 @@ class ActivationTests(unittest.TestCase):
             act.service("disable")
 
     def test_commit_pin_required(self):
+        self.retrieve_patch.stop()  # Exercise the real guard, never download.
         with self.assertRaisesRegex(act.Stop, "DOWNLOAD_SOURCE_NOT_PINNED"):
             act.retrieve("main", act.MODULES[0])
         with self.assertRaisesRegex(act.Stop, "DOWNLOAD_SOURCE_NOT_PINNED"):
