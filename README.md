@@ -2,6 +2,14 @@
 
 A Raspberry Pi-n futó FieldWork MCP biztonságos, reprodukálható frissítési infrastruktúrája.
 
+## 2026-10-30 – staging lifecycle mérföldkő (NEM telepített)
+
+A v0.6.1 MCP-ben a staging `STAGE_RUNNING_CHECK` státusza félrevezető: az utolsó Docker `ps` kimenet **üres**, a staging health `STAGE_HEALTH_FAIL`. A produkciós API és PostgreSQL a csak olvasási Docker-lekérdezéskor healthy volt. A staging **nem elfogadott**.
+
+Az új, egyben kezelendő fejlesztési csomag: `experimental/stage_inspect.py` (valódi `ps -a` diagnosztika), `experimental/stage_start_async.py` (tartós, duplikálást tiltó aszinkron indítás), `experimental/lifecycle_overlay.py` (pontos forrás-illesztési kapu) és `experimental/lifecycle_qualification.py` (SHA-256-alapú, kizárólag olvasási ellenőrzés). Az öt modul rögzített SHA-256 értékeit a [lifecycle manifest](experimental/lifecycle_manifest.json) tartalmazza. A manifest SHA-256: `d500da3872ff05c22cefbc75fa8091fc30e39471a634926e127e3a48d13a1c0e`, az első teljes snapshot commit: `45657a2592218b326f4ca75a63a78923e86bd69f`.
+
+A [biztonsági ellenőrzési kapu](docs/STAGE_LIFECYCLE_CANDIDATE_2026-10-30.md) és az új offline tesztek a GitHubon vannak. A statikus ellenőrző helyi, izolált tesztje **11/11 PASS** (9 negatív/pozitív kvalifikációs teszt + 2 overlay-lánc teszt); a GitHub Actions futási eredményét és a Pi-n végzett integrációt még külön igazolni kell. **Nincs Pi-telepítés, automatikus MCP-frissítés vagy production-deploy.**
+
 ## Elkészült
 
 - **Egyszeri bootstrap**: [bootstrap/bootstrap.py](bootstrap/bootstrap.py). GitHubról, konkrét commitból és SHA-256 ellenőrzéssel tölti le az updater modulokat, kizárólag külön staging könyvtárba. Nem írja felül a futó MCP-t.
