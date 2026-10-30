@@ -35,53 +35,87 @@ def require(valid: bool, reason: str) -> None:
         raise AuditBlocked(reason)
 
 
-def _safe_dir(path: Path, uid: int) -> None:
-    # lstat does not follow the symlink for this path component.
-    st = path.lstat()
-    require(stat.S_ISDIR(st.st_mode), 'UNSAFE_PARENT_TYPE')
-    require(st.st_uid in (0, uid), 'UNSAFE_PARENT_OWNER')
-    require((st.st_mode & 0o022) == 0, 'UNSAFE_PARENT_MODE')
+def _check_directory_fd(fd: int, uid: int) -> None:
+    info = os.fstat(fd)
+    require(stat.S_ISDIR(info.st_mode), 'UNSAFE_PARENT_TYPE')
+    require(info.st_uid in (0, uid), 'UNSAFE_PARENT_OWNER')
+    require((info.st_mode & 0o022) == 0, 'UNSAFE_PARENT_MODE')
 
 
 def _safe_ancestors(path: Path, home: Path, uid: int) -> None:
+    # Readability / permissions are checked on anchored descriptors below,
+    # not via a preflight lstat that could race with an attacker.
     require(path.is_absolute() and home.is_absolute(), 'NON_ABSOLUTE_PATH')
     require(path == home / RELATIVE_SOURCE, 'SOURCE_PATH_DENIED')
-    current = home
-    _safe_dir(current, uid)
-    for part in RELATIVE_SOURCE.parts[:-1]:
-        current = current / part
-        _safe_dir(current, uid)
 
 
-def _read_secure(path: Path, uid: int) -> bytes:
-    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, 'O_CLOEXEC', 0)
-    fd = os.open(path, flags)
+def _open_directory(path_or_name: Path | str, uid: int,
+                    parent_fd: int | None = None) -> int:
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, 'O_CLOEXEC', 0)
     try:
-        before = os.fstat(fd)
-        require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1,
-                'UNSAFE_SOURCE_TYPE')
-        require(before.st_uid == uid, 'UNSAFE_SOURCE_OWNER')
-        require((before.st_mode & 0o022) == 0, 'UNSAFE_SOURCE_MODE')
-        require(0 < before.st_size <= MAX_BYTES, 'SOURCE_SIZE_DENIED')
-        data = bytearray()
-        while len(data) < MAX_BYTES + 1:
-            chunk = os.read(fd, min(65536, MAX_BYTES + 1 - len(data)))
-            if not chunk:
-                break
-            data.extend(chunk)
-        after = os.fstat(fd)
-        require(len(data) == before.st_size and
-                (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns,
-                 before.st_ctime_ns) ==
-                (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns,
-                 after.st_ctime_ns), 'SOURCE_CHANGED_DURING_READ')
-        on_disk = os.stat(path, follow_symlinks=False)
-        require((after.st_dev, after.st_ino) == (on_disk.st_dev, on_disk.st_ino),
-                'SOURCE_PATH_CHANGED')
-        return bytes(data)
-    finally:
+        fd = os.open(path_or_name, flags, dir_fd=parent_fd)
+    except OSError as exc:
+        raise AuditBlocked('UNSAFE_PARENT_TYPE') from exc
+    try:
+        _check_directory_fd(fd, uid)
+        return fd
+    except BaseException:
         os.close(fd)
+        raise
 
+
+def _read_secure(home: Path, uid: int) -> bytes:
+    # Every path component is opened relative to the previously anchored
+    # directory descriptor. Never follow a symlink in an intermediate parent.
+    fds = []
+    try:
+        fds.append(_open_directory(home, uid))
+        for part in RELATIVE_SOURCE.parts[:-1]:
+            fds.append(_open_directory(part, uid, fds[-1]))
+        parent_fd = fds[-1]
+        flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, 'O_CLOEXEC', 0)
+        fd = os.open(RELATIVE_SOURCE.name, flags, dir_fd=parent_fd)
+        try:
+            before = os.fstat(fd)
+            require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1,
+                    'UNSAFE_SOURCE_TYPE')
+            require(before.st_uid == uid, 'UNSAFE_SOURCE_OWNER')
+            require((before.st_mode & 0o022) == 0, 'UNSAFE_SOURCE_MODE')
+            require(0 < before.st_size <= MAX_BYTES, 'SOURCE_SIZE_DENIED')
+            data = bytearray()
+            while len(data) < MAX_BYTES + 1:
+                chunk = os.read(fd, min(65536, MAX_BYTES + 1 - len(data)))
+                if not chunk:
+                    break
+                data.extend(chunk)
+            after = os.fstat(fd)
+            require(len(data) == before.st_size and
+                    (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns,
+                     before.st_ctime_ns) ==
+                    (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns,
+                     after.st_ctime_ns), 'SOURCE_CHANGED_DURING_READ')
+            on_disk = os.stat(RELATIVE_SOURCE.name, dir_fd=parent_fd,
+                              follow_symlinks=False)
+            require((after.st_dev, after.st_ino) ==
+                    (on_disk.st_dev, on_disk.st_ino), 'SOURCE_PATH_CHANGED')
+            # The chain must still link the same inodes it did at open time.
+            home_now = os.stat(home, follow_symlinks=False)
+            root = os.fstat(fds[0])
+            require((home_now.st_dev, home_now.st_ino) ==
+                    (root.st_dev, root.st_ino), 'SOURCE_HOME_CHANGED')
+            for index, component in enumerate(RELATIVE_SOURCE.parts[:-1], 1):
+                child = os.stat(component, dir_fd=fds[index - 1],
+                                follow_symlinks=False)
+                anchored = os.fstat(fds[index])
+                require((child.st_dev, child.st_ino) ==
+                        (anchored.st_dev, anchored.st_ino),
+                        'SOURCE_PARENT_CHANGED')
+            return bytes(data)
+        finally:
+            os.close(fd)
+    finally:
+        for directory_fd in reversed(fds):
+            os.close(directory_fd)
 
 def _registration_tuple_names(tree: ast.AST) -> list[str]:
     """Static tuple candidates ONLY; never claims actual runtime MCP discovery."""
@@ -104,7 +138,7 @@ def inspect(*, home: Path | None = None, uid: int | None = None) -> dict:
     try:
         require(os.geteuid() != 0, 'ROOT_EXECUTION_DENIED')
         _safe_ancestors(path, home, uid)
-        data = _read_secure(path, uid)
+        data = _read_secure(home, uid)
         sha256 = hashlib.sha256(data).hexdigest()
         tree = ast.parse(data.decode('utf-8'), filename='fieldwork_mcp.py')
         found = _registration_tuple_names(tree)
