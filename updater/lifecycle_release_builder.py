@@ -32,6 +32,11 @@ META_NAME = 'lifecycle-release.json'
 ZIP_NAMES = frozenset((*FILE_NAMES, META_NAME))
 MAX_ARCHIVE = 4_500_000
 PINNED_MANIFEST_SHA256 = 'd500da3872ff05c22cefbc75fa8091fc30e39471a634926e127e3a48d13a1c0e'
+PINNED_MODULE_SHA256 = {
+    'stage_async.py': 'add1db45504e53af0663bc7432d893a35819b8fcf6acc057451182c7f1dca964',
+    'stage_inspect.py': 'f6fa5e6cc5dfbfedba53efd390e26d7f4f5a24589c28635e9c12b6977430c4af',
+    'stage_start_async.py': 'fa680e5d9ae1a4fff5dbe68220755ba1d8737fc6f69e69e2485e796e1dc33a19',
+}
 MAX_FILE = 1_000_000
 TIMESTAMP = (2026, 10, 30, 0, 0, 0)
 
@@ -128,6 +133,8 @@ def verify(data: bytes, *, expected_manifest_sha256: str) -> dict:
             len(expected_manifest_sha256) == 64 and
             all(c in '0123456789abcdef' for c in expected_manifest_sha256),
             'MANIFEST_PIN_DENIED')
+    require(expected_manifest_sha256 == PINNED_MANIFEST_SHA256,
+            'UNTRUSTED_RELEASE_MANIFEST')
     try:
         with zipfile.ZipFile(BytesIO(data), 'r') as archive:
             names = archive.namelist()
@@ -169,6 +176,9 @@ def verify(data: bytes, *, expected_manifest_sha256: str) -> dict:
         require(type(record['files'][filename]) is str and
                 record['files'][filename] == sha(content[filename]),
                 'PAYLOAD_HASH_MISMATCH')
+        if filename in PINNED_MODULE_SHA256:
+            require(sha(content[filename]) == PINNED_MODULE_SHA256[filename],
+                    'TRUSTED_MODULE_HASH_MISMATCH:' + filename)
         try:
             ast.parse(content[filename].decode('utf-8'))
         except (UnicodeError, SyntaxError) as exc:
