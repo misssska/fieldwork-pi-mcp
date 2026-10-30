@@ -62,3 +62,21 @@ A `fieldwork_stage_full_test` eszköz hívása belső hibával végződött, íg
 ### Következő javítás
 
 Az MCP sandbox-futtató konfigurációját a következő, helyben jóváhagyott MCP-kiadásban úgy kell módosítani, hogy a tesztadatbázis változóit a védelmi ellenőrzés által megkövetelt módon adja át, és a produkciós `DATABASE_URL` változót ne állítsa be a tesztadatbázis URL-jére. A teljes admin-rotation tesztkészlet függőségeit és forrásmásolatát külön ellenőrizni kell. A `test_database_guard.py` védelmi feltételei **nem lazíthatók**.
+
+## 2026-10-30 – staging-átadás: hibás run_id, nem igazolt staging-hiba
+
+A `fieldwork_stage_capabilities` újra **`locally_approved=true`** állapotot jelentett, a fix `fieldwork-stage` projekt LAN portja 18081. A korábbi javaslat `fieldwork_stage_release_status` értéke `FULL_TEST_PASS`, de a `fieldwork_stage_status` még `STAGE_NOT_STARTED`.
+
+A `fieldwork_stage_prepare` hívást **tévesen új, tetszőleges run_id-val** indítottam (`ec81dcb4a9034d52b8716a2f0539ce40`). Az eszköz `TEST_RECEIPT_INVALID` hibával, helyesen **fail-closed** módon elutasította. A v0.6.1 eredeti telepítőcsomagjának `README_HU.md` dokumentuma a konkrét, korábban tesztelt `ec110000000000000000000000000002` azonosítót írja elő. A `stage_manager.py` forrás alapján a `prepare` csak akkor folytatható, ha ehhez a futáshoz az alábbiak mind igazak:
+
+- `SANDBOX_COMMAND_PASS` státusz;
+- az előre rögzített, **`428930d45faa55e7bfe35be3598e9f7787ad32ca0874a5ffbc9e7cb53d27232f`** parancs-SHA256;
+- `with_test_db=true`, `production_modified=false`, `production_mounts=false`;
+- minden cleanup sikeres;
+- legalább 62 PASS és nincs FAIL a tesztkimenetben.
+
+A `fieldwork_stage_full_test` a forrás alapján **csak a sikeres stage_prepare után** indítható. A sorrenden kívüli hívás belső hibát adott, és az MCP session megszakadt. **Nem indult staging-konténer, éles telepítés vagy tunnel-módosítás.** Az MCP kapcsolat utólagos állapotellenőrzése a session megszakadása miatt még függőben van.
+
+A v0.6.1 eredeti ZIP-jének egységtesztjeit izolált helyi környezetben újrafuttattam: **65/65 PASS**. A tesztek között szerepel a hibás parancshash, nem tesztadatbázisos futás, sikertelen cleanup, production mount és 61 PASS + 1 FAIL elutasítása.
+
+**Következő biztonságos lépés:** MCP kapcsolat helyreállása után kizárólag a dokumentált `ec110000000000000000000000000002` run_id `fieldwork_sandbox_command_status` lekérdezése, majd csak valódi, érvényes bizonylat esetén `fieldwork_stage_prepare`. Tilos a tesztbizonylatot pótolni, hamisítani vagy a hash-kaput feloldani. A `FULL_TEST_PASS` staging-státusz önmagában nem helyettesíti a megkövetelt sandbox-futás bizonylatát.
