@@ -36,3 +36,16 @@ A symlinkes importútvonalakat elutasítja. A diagnosztika nem tartalmaz automat
 5. Csak sikeres teljes teszt és kifejezett helyi jóváhagyás után következhet éles MCP-frissítés.
 
 Az éles `/opt/fieldwork`, adatbázis, Docker és a meglévő tunnel változatlan.
+
+## Fájlazonosság ellenőrzése
+
+A helyi tesztekben futtatott Python-fájlokat a GitHubon visszaolvasott tartalmakkal Git blob SHA-1 alapján is összevetettem. **Mind a négy egyezik**:
+
+| Fájl | Git blob SHA-1 |
+|---|---|
+| `updater/admin_import_preflight.py` | `75b90a5675209a72d7158cf491275c0048b2bc00` |
+| `tests/test_admin_import_preflight.py` | `8874783fb138a610530e84c897b0902352194c85` |
+| `updater/sandbox_db_env.py` | `417bf552b839ad4bc96f56a3a3409bb0894e5a7a` |
+| `tests/test_sandbox_db_env.py` | `a1b365919de10d3d9c2dda8aba3b533082c092c0` |
+
+Ez a négy GitHub-fájl és a 24/24 PASS tesztelt helyi példány közötti **byte-azonosságot** igazolja, de **nem** igazol Pi-n történő futtatást vagy GitHub Actions sikert.
