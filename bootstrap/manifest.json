@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "files": [
+    {
+      "path": "updater/stage_release.py",
+      "sha256": "34f571e0bd0cbe6dd5432a6a6cf32e5e88a6a48b6276947d2818e6889c70812a"
+    },
+    {
+      "path": "updater/compatibility.py",
+      "sha256": "ef8940996be6fe5f6e2e5a5567e51ae42f2a0a4e8a10cf306261e7b8b80b3b0e"
+    },
+    {
+      "path": "updater/async_overlay.py",
+      "sha256": "0a0591f2414194fcf64e70274ab53a08fceb130f90d3afd650530ea06ab44afd"
+    }
+  ]
+}
