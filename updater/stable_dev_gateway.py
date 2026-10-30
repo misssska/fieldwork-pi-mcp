@@ -12,7 +12,7 @@ import json
 import re
 
 GATEWAY_HOST = '192.168.22.13'
-GATEWAY_PORT = 18080
+GATEWAY_PORT = 18090
 GATEWAY_PROJECT = 'fieldwork-dev-gateway'
 GATEWAY_URL = f'http://{GATEWAY_HOST}:{GATEWAY_PORT}'
 MILESTONE = re.compile(r'fieldwork-parity-m([1-9][0-9]*)\Z')
