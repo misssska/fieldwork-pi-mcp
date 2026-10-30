@@ -62,7 +62,11 @@ class StageTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.state = Path(self.temp.name) / "state"
+        self.home = Path(self.temp.name)
+        self.state = self.home / ".local/state/fieldwork-pi-mcp/update-staging"
+        self.home_patch = patch.object(sr.Path, "home", return_value=self.home)
+        self.home_patch.start()
+        self.addCleanup(self.home_patch.stop)
         self.uid_patch = patch.object(sr.os, "geteuid", return_value=1000)
         self.uid_patch.start()
         self.addCleanup(self.uid_patch.stop)
@@ -99,10 +103,14 @@ class StageTests(unittest.TestCase):
     def test_symlink_state_denied(self):
         real = Path(self.temp.name) / "real"
         real.mkdir()
-        link = Path(self.temp.name) / "link"
-        link.symlink_to(real, target_is_directory=True)
+        self.state.parent.mkdir(parents=True)
+        self.state.symlink_to(real, target_is_directory=True)
         with self.assertRaisesRegex(sr.StageError, "SYMLINK_PATH_DENIED"):
-            sr.stage(COMMIT, hashlib.sha256(manifest()).hexdigest(), link)
+            sr.stage(COMMIT, hashlib.sha256(manifest()).hexdigest(), self.state)
+
+    def test_arbitrary_destination_denied(self):
+        with self.assertRaisesRegex(sr.StageError, "STAGE_DESTINATION_DENIED"):
+            sr.stage(COMMIT, hashlib.sha256(manifest()).hexdigest(), self.home / "other")
 
 
 if __name__ == "__main__":
