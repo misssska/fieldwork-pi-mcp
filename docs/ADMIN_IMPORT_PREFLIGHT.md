@@ -49,3 +49,25 @@ A helyi tesztekben futtatott Python-fájlokat a GitHubon visszaolvasott tartalma
 | `tests/test_sandbox_db_env.py` | `a1b365919de10d3d9c2dda8aba3b533082c092c0` |
 
 Ez a négy GitHub-fájl és a 24/24 PASS tesztelt helyi példány közötti **byte-azonosságot** igazolja, de **nem** igazol Pi-n történő futtatást vagy GitHub Actions sikert.
+
+## 2026-10-30 – gyökérok a Pi-n igazolva
+
+Az MCP kapcsolat helyreállt, és az eredeti, változatlan `cfb10c47c1b3413c9adbd50e5c7249ef` sandboxban három új, csak olvasó diagnosztika futott.
+
+1. A `tests/test_admin_rotation.py` pontosan **2** `scripts.*` modult importál, ezekből a sandboxban **1** hiányzik.
+2. A hiányzó modul fájlneve **illeszkedik** az MCP forrásmásolatának `operator_support.DENY_FILE` kizárási szabályára; nem maradt olyan hiányzó `scripts.*` modul, amelyre ez ne lenne igaz. A szabály a jelszót, titkot, hitelesítő adatot stb. jelölő fájlneveket **szándékosan kizárja**.
+3. A `pytest --collect-only --ignore=tests/test_admin_rotation.py` parancs a helyes tesztadatbázis-környezettel **62 tesztet gyűjtött**. Ezek megegyeznek a korábban két izolált futásban sikeres 29 API + 33 safety/migration teszttel.
+
+**Következtetés:** a hiányzó admin-rotation modul a sandbox biztonsági forráskizárásának **várt következménye**, nem indok a kizárási szabály feloldására. Az általános fotóteszt-sandbox nem alkalmas a jelszókezelési admin-modul tesztelésére. Ezt csak külön, kifejezetten erre tervezett és helyben jóváhagyott biztonságos tesztkörnyezetben lehet elvégezni.
+
+A diagnosztika a Pi-n **nem olvasta, nem másolta és nem futtatta** a kizárt fájlt. Az MCP `fieldwork_read_file` eszköze a tiltott útvonalra `PATH_DENIED` eredményt adott. A három izolált diagnosztika `production_modified=false`, `production_mounts=false` és sikeres takarítás értéket jelzett.
+
+### Kódjavítás és tesztek
+
+Az `updater/admin_import_preflight.py` most `POLICY_EXCLUDED_IMPORTS` állapotot ad, ha kizárólag a fenti szándékos szabály miatt hiányoznak modulok. A tiltott modulneveket nem adja vissza a részletes hiánylistában; csak a számukat. A valódi, nem kizárt hiányok továbbra is `MISSING_LOCAL_IMPORTS` eredményt adnak.
+
+**15/15 admin-preflight teszt és 12/12 sandbox DB teszt PASS**, összesen **27/27 helyi egységteszt**, Python `compileall` PASS. A GitHubon visszaolvasott fájlok Git blob SHA-1 azonosítója egyezik a tesztelt helyi példányokéval.
+
+A `fieldwork_stage_release_status` külön **`FULL_TEST_PASS`** állapotot jelez a staging-folyamathoz. Ez nem azonos a kizárt admin-rotation teszteket is tartalmazó teljes backend-suite PASS eredményével.
+
+**Nem történt éles frissítés, a bootstrap manifestet nem módosítottam, az éles FieldWork és a tunnel változatlan.**
