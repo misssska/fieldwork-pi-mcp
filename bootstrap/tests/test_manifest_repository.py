@@ -17,6 +17,7 @@ class RepoIntegrityTests(unittest.TestCase):
             'updater/compatibility.py',
             'updater/async_overlay.py',
             'updater/qualification.py',
+            'updater/activation_plan.py',
         })
         for entry in manifest['files']:
             path = ROOT / entry['path']
