@@ -95,6 +95,8 @@ def stage(commit: str, manifest_sha256: str, state: Path) -> Path:
     require(HEX64.fullmatch(manifest_sha256) is not None, "MANIFEST_SHA_REQUIRED")
     require(os.geteuid() != 0, "ROOT_NOT_ALLOWED")
     state = state.expanduser().absolute()
+    require(state == Path.home() / ".local/state/fieldwork-pi-mcp/update-staging",
+            "STAGE_DESTINATION_DENIED")
     safe_parent(state)
     state.mkdir(mode=0o700, parents=True, exist_ok=True)
     require(state.is_dir() and state.stat().st_uid == os.getuid(), "STATE_NOT_OWNED")
