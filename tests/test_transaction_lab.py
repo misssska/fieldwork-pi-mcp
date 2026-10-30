@@ -1,5 +1,7 @@
 """Fault injection and fail-closed tests for the isolated transaction engine."""
 import hashlib
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -54,6 +56,22 @@ class TransactionLabTests(unittest.TestCase):
         self.prepare()
         with self.assertRaisesRegex(RuntimeError, 'SIMULATED_CRASH'):
             self.tx.apply(NEW, EXT, fail_at='after_main')
+        self.assertEqual(LabTransaction(self.root).recover()['status'], 'ROLLED_BACK')
+        self.assertEqual(self.main.read_bytes(), OLD)
+
+    def test_real_subprocess_crash_then_recover(self):
+        self.prepare()
+        code = (
+            'from pathlib import Path; '
+            'from updater.transaction_lab import LabTransaction; '
+            f'LabTransaction(Path({str(self.root)!r})).apply('
+            f"{NEW!r}, {EXT!r}, fail_at='after_main')"
+        )
+        result = subprocess.run([sys.executable, '-c', code],
+                                cwd=Path(__file__).resolve().parents[1],
+                                capture_output=True, timeout=10)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.main.read_bytes(), NEW)
         self.assertEqual(LabTransaction(self.root).recover()['status'], 'ROLLED_BACK')
         self.assertEqual(self.main.read_bytes(), OLD)
 
