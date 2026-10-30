@@ -17,5 +17,5 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Run offline bootstrap tests
         run: PYTHONPATH=bootstrap python -m unittest discover -s bootstrap/tests -p 'test_*.py' -v
-      - name: Compile updater and bootstrap
-        run: python -m compileall -q updater bootstrap
+      - name: Compile updater, bootstrap and experimental candidates
+        run: python -m compileall -q updater bootstrap experimental
