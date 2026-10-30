@@ -33,3 +33,14 @@ A worker sikeres visszatérése `START_COMMAND_PASS` – ez **nem** jelenti az A
 4. Helyileg jóváhagyott aktiválás után `STAGE_CONTAINERS_RUNNING_HEALTH_UNVERIFIED` + `STAGE_HEALTH_PASS` + API regresszió kell a staging elfogadásához.
 
 **Nem történt Pi MCP telepítés, staging újraindítás vagy éles FieldWork módosítás ebben a fejlesztési körben.**
+
+## Újabb ellenőrzés és integrációs jelölt
+
+A Pi MCP v0.6.1 kapcsolat 2026-10-30-án ismét válaszolt. Az újabb `fieldwork_stage_status` változatlanul `STAGE_RUNNING_CHECK` / `e3b0c44298fc1c14:0:0`, a `fieldwork_stage_smoke` `STAGE_HEALTH_FAIL`, az API staging-napló üres. A staging **nem healthy**. A szinkron `stage_start` újraindítását a bizonyítékok tisztázásáig nem ismételtük meg.
+
+- [experimental/lifecycle_overlay.py](../experimental/lifecycle_overlay.py) pontos integrációs anchorokkal, AST-szintaxisellenőrzéssel, duplikált/eltérő forrás elutasításával egészíti ki a **már aszinkron tesztelésre felkészített** MCP-jelöltet. Három új eszköz: `fieldwork_stage_start_request`, `fieldwork_stage_start_status`, `fieldwork_stage_inspect`.
+- A GitHubon új tesztek: [test_lifecycle_overlay.py](../tests/test_lifecycle_overlay.py), [test_stage_inspect.py](../tests/test_stage_inspect.py), [test_stage_start_async.py](../tests/test_stage_start_async.py).
+- A helyi, izolált munkakönyvtárban az integrációs és staging-jelöltekre **35/35 Python unittest PASS**, `compileall` PASS. Ezek nem Pi Docker-integrációs tesztek; GitHub Actions eredményük még nincs ellenőrizve.
+- A v0.6.1 -> aszinkron teszt -> aszinkron indítás láncot külön, hash-ellenőrzött és helyben jóváhagyott kiadásban kell aktiválni. **A GitHub-kód nem telepített Pi-kód.**
+
+A következő elfogadási feltétel: a rögzített `fieldwork-stage` projekt `ps -a` állapotának biztonságos lekérdezése, majd a konkrét build/start hiba elkülönítése. `active.json` automatikus törlése vagy duplikált indítás tilos.
