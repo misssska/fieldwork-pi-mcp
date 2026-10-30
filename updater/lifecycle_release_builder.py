@@ -1,7 +1,7 @@
 """Build reproducible, non-installable four-file MCP lifecycle release ZIP.
 
 Only exact Schemafix-r1 source bytes and exact five-file hash-pinned module
-manifest are accepted. This module does not read the Pi, write files, run code,
+manifest are accepted. This module does not access the Pi, write files, execute source code,
 execute commands, approve activation, or restart services. Zip is returned as
 bytes for external review; manifest explicitly says NOT DEPLOYABLE.
 """
@@ -31,6 +31,7 @@ MODULE_PATHS = {
 META_NAME = 'lifecycle-release.json'
 ZIP_NAMES = frozenset((*FILE_NAMES, META_NAME))
 MAX_ARCHIVE = 4_500_000
+PINNED_MANIFEST_SHA256 = 'd500da3872ff05c22cefbc75fa8091fc30e39471a634926e127e3a48d13a1c0e'
 MAX_FILE = 1_000_000
 TIMESTAMP = (2026, 10, 30, 0, 0, 0)
 
@@ -58,6 +59,8 @@ def build(*, source: bytes, manifest: bytes, expected_manifest_sha256: str,
     """Construct a fixed-scope, reproducible ZIP without any filesystem I/O."""
     require(type(source) is bytes and sha(source) == schemafix_lineage.SCHEMAFIX_SHA,
             'SCHEMAFIX_SOURCE_HASH_DENIED')
+    require(expected_manifest_sha256 == PINNED_MANIFEST_SHA256,
+            'UNTRUSTED_RELEASE_MANIFEST')
     require(type(modules) is dict and
             set(modules) == qualification.FILES, 'MODULE_FILE_SET_DENIED')
     result = qualification.qualify(
