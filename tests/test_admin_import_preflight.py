@@ -59,6 +59,25 @@ class AdminImportPreflightTests(unittest.TestCase):
         result = self.write("import scripts.rotate_admin\nimport scripts.rotate_admin\n")
         self.assertEqual(result["explicit_missing"], ["scripts.rotate_admin"])
 
+    def test_sensitive_filename_is_intentionally_excluded(self):
+        result = self.write("from scripts.rotate_admin_password import rotate\n")
+        self.assertEqual(result["status"], "POLICY_EXCLUDED_IMPORTS")
+        self.assertEqual(result["policy_excluded_count"], 1)
+        self.assertEqual(result["explicit_missing"], [])
+        self.assertNotIn("rotate_admin_password", repr(result))
+
+    def test_sensitive_filename_is_not_copied_even_if_present(self):
+        # The preflight must not read or copy a sensitive source file.
+        result = self.write("import scripts.admin_password\n")
+        self.assertEqual(result["status"], "POLICY_EXCLUDED_IMPORTS")
+        self.assertFalse(result["executed_code"])
+
+    def test_mixed_missing_reports_only_actionable(self):
+        result = self.write("import scripts.admin_password\nimport scripts.rotate_admin\n")
+        self.assertEqual(result["status"], "MISSING_LOCAL_IMPORTS")
+        self.assertEqual(result["explicit_missing"], ["scripts.rotate_admin"])
+        self.assertEqual(result["policy_excluded_count"], 1)
+
     def test_test_file_missing_denied(self):
         with self.assertRaisesRegex(PreflightDenied, "ADMIN_TEST_MISSING_OR_TOO_LARGE"):
             check_admin_imports(self.root)
