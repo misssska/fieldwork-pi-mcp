@@ -34,6 +34,10 @@ class ReleaseBuilderTests(unittest.TestCase):
         self.mocks.enter_context(patch.object(
             b, 'PINNED_MANIFEST_SHA256', MANIFEST_SHA))
         self.mocks.enter_context(patch.object(
+            b, 'PINNED_MODULE_SHA256', {
+                target: b.sha(MODULES[src])
+                for target, src in b.MODULE_PATHS.items()}))
+        self.mocks.enter_context(patch.object(
             b.schemafix_lineage, 'SCHEMAFIX_SHA', b.sha(ORIGINAL)))
         self.mocks.enter_context(patch.object(
             b.schemafix_lineage, 'LIFECYCLE_SCHEMAFIX_SHA', b.sha(CANDIDATE)))
@@ -134,6 +138,35 @@ class ReleaseBuilderTests(unittest.TestCase):
                 archive.writestr(info, raw)
         with self.assertRaisesRegex(b.BundleRejected, 'PAYLOAD_HASH_MISMATCH'):
             b.verify(output.getvalue(), expected_manifest_sha256=MANIFEST_SHA)
+
+    def test_payload_plus_self_declared_manifest_hash_tamper_denied(self):
+        """Updating both the ZIP file and its own manifest must NOT bypass pinning."""
+        packed, _ = self.build()
+        with zipfile.ZipFile(BytesIO(packed)) as source:
+            members = [(entry, source.read(entry)) for entry in source.namelist()]
+        output = BytesIO()
+        altered = b'def malicious_stage_inspect():\n    return True\n'
+        with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_STORED) as archive:
+            for name, raw in members:
+                info = zipfile.ZipInfo(name, date_time=b.TIMESTAMP)
+                info.create_system = 3
+                info.external_attr = 0o100600 << 16
+                info.compress_type = zipfile.ZIP_STORED
+                if name == 'stage_inspect.py':
+                    raw = altered
+                elif name == b.META_NAME:
+                    metadata = json.loads(raw)
+                    metadata['files']['stage_inspect.py'] = b.sha(altered)
+                    raw = b._json(metadata)
+                archive.writestr(info, raw)
+        with self.assertRaisesRegex(b.BundleRejected,
+                                    'TRUSTED_MODULE_HASH_MISMATCH:stage_inspect.py'):
+            b.verify(output.getvalue(), expected_manifest_sha256=MANIFEST_SHA)
+
+    def test_verify_untrusted_manifest_denied_even_when_well_formed(self):
+        packed, _ = self.build()
+        with self.assertRaisesRegex(b.BundleRejected, 'UNTRUSTED_RELEASE_MANIFEST'):
+            b.verify(packed, expected_manifest_sha256='f' * 64)
 
     def test_wrong_manifest_pin_denied(self):
         packed, _ = self.build()
