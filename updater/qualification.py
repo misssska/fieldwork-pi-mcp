@@ -68,13 +68,17 @@ def qualify(commit: str, manifest_hash: str, expected_installed_hash: str) -> di
     safe_directory(stage)
     receipt = json.loads(owned_bytes(stage / "receipt.json", 8192))
     require(type(receipt) is dict and set(receipt) == {
-        "commit", "manifest_sha256", "files", "status"
+        "commit", "manifest_sha256", "files", "file_sha256", "status"
     }, "STAGE_RECEIPT_SCHEMA_DENIED")
     require(receipt["status"] == "STAGED_NOT_INSTALLED", "STAGE_NOT_READY")
     require(receipt["commit"] == commit and receipt["manifest_sha256"] == manifest_hash,
             "STAGE_RECEIPT_MISMATCH")
     require(type(receipt["files"]) is list and set(receipt["files"]) == set(REQUIRED)
             and len(receipt["files"]) == len(REQUIRED), "STAGE_FILE_LIST_DENIED")
+    hashes = receipt["file_sha256"]
+    require(type(hashes) is dict and set(hashes) == set(REQUIRED)
+            and all(type(h) is str and HEX64.fullmatch(h) is not None
+                    for h in hashes.values()), "STAGE_HASH_LIST_DENIED")
     main = owned_bytes(MCP / "fieldwork_mcp.py", MAX_SOURCE)
     installed_hash = digest(main)
     require(installed_hash == expected_installed_hash, "INSTALLED_SOURCE_DRIFT")
@@ -83,6 +87,9 @@ def qualify(commit: str, manifest_hash: str, expected_installed_hash: str) -> di
             and not (MCP / "stage_async.py").is_symlink(), "ASYNC_ALREADY_PRESENT")
     extension = owned_bytes(stage / "stage_async.py", MAX_SOURCE)
     overlay_bytes = owned_bytes(stage / "async_overlay.py", MAX_SOURCE)
+    require(digest(extension) == hashes["stage_async.py"]
+            and digest(overlay_bytes) == hashes["async_overlay.py"],
+            "STAGE_CONTENT_HASH_MISMATCH")
     # The reviewed overlay implementation must be the one that produced the candidate.
     reference = owned_bytes(Path(__file__).with_name("async_overlay.py"), MAX_SOURCE)
     require(digest(overlay_bytes) == digest(reference), "OVERLAY_IMPLEMENTATION_DRIFT")
