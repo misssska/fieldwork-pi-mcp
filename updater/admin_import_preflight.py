@@ -11,6 +11,16 @@ from pathlib import Path
 import re
 
 
+# Mirrors the Pi MCP snapshot exclusion rule for sensitive filenames.
+# Never include excluded source modules in the generic photo-test snapshot.
+DENY_FILE = re.compile(
+    r'(?i)(^\\.env(?:\\.|$)|secret|password|credential|'
+    r'(?:^|[._-])token(?:[._-]|$)|(?:^|[._-])key(?:[._-]|$)|'
+    r'\\.pem$|\\.p12$|\\.pfx$|\\.crt$|\\.sqlite|\\.db$|'
+    r'\\.log$|id_rsa|id_ed25519|\\.bak$|\\.dump$)'
+)
+
+
 class PreflightDenied(RuntimeError):
     pass
 
@@ -61,15 +71,19 @@ def check_admin_imports(server_root: Path) -> dict:
         py = _safe_path(root, relative + ".py")
         pkg = _safe_path(root, relative + "/__init__.py")
         (present if py.is_file() or pkg.is_file() else missing).append(module)
+    excluded = sorted(m for m in missing if DENY_FILE.search(m.split(".")[-1] + ".py"))
+    actionable = sorted(set(missing) - set(excluded))
     unresolved = sorted(module for module in ambiguous
                         if module not in explicit and
                         not _safe_path(root, module.replace(".", "/") + ".py").is_file() and
                         not _safe_path(root, module.replace(".", "/") + "/__init__.py").is_file())
     return {
-        "status": "MISSING_LOCAL_IMPORTS" if missing else
+        "status": "MISSING_LOCAL_IMPORTS" if actionable else
+                  "POLICY_EXCLUDED_IMPORTS" if excluded else
                   "AMBIGUOUS_LOCAL_IMPORTS" if unresolved else
                   "STATIC_IMPORT_PATHS_PRESENT",
-        "explicit_missing": missing,
+        "explicit_missing": actionable,
+        "policy_excluded_count": len(excluded),
         "explicit_present": present,
         "ambiguous_from_import": unresolved,
         "executed_code": False,
