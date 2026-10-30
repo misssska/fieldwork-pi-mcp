@@ -3,7 +3,7 @@
   "files": [
     {
       "path": "updater/stage_release.py",
-      "sha256": "5a4bf649481d1defacc909e905a26afc79ee1aff8617728fce5737bfed35954b"
+      "sha256": "eb4324ed13542b63a5dab0edc3183fc256fe095a5e21e07c426c507f61a524e6"
     },
     {
       "path": "updater/compatibility.py",
