@@ -69,6 +69,7 @@ class ActivationTests(unittest.TestCase):
 
     def test_activate_then_explicit_rollback(self):
         with patch.object(act, "service", return_value=True) as srv, \
+             patch.object(act, "privilege", return_value=True), \
              patch.object(act, "ready", return_value=True), \
              patch("builtins.input", return_value="AKTIVALOM"):
             act.activate(COMMIT, self.root, self.state)
@@ -94,6 +95,7 @@ class ActivationTests(unittest.TestCase):
             return True
 
         with patch.object(act, "service", side_effect=mocked), \
+             patch.object(act, "privilege", return_value=True), \
              patch("builtins.input", return_value="AKTIVALOM"):
             with self.assertRaisesRegex(act.Stop, "TUNNEL_RESTART_FAILED"):
                 act.activate(COMMIT, self.root, self.state)
@@ -111,6 +113,7 @@ class ActivationTests(unittest.TestCase):
 
     def test_unexpected_change_blocks_rollback(self):
         with patch.object(act, "service", return_value=True), \
+             patch.object(act, "privilege", return_value=True), \
              patch.object(act, "ready", return_value=True), \
              patch("builtins.input", return_value="AKTIVALOM"):
             act.activate(COMMIT, self.root, self.state)
