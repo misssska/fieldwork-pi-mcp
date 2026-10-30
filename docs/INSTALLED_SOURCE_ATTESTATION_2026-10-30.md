@@ -18,7 +18,9 @@ ellenőrzés, néhány előre rögzített staging eszköznév statikus tuple-sz�
 
 - Nem root felhasználó, pontosan rögzített forrásútvonal.
 - Az MCP könyvtárlánca nem lehet symlink vagy idegen tulajdonú,
-  csoportnak / más felhasználónak írható könyvtár.
+  csoportnak / más felhasználónak írható könyvtár. Minden komponenst
+  `O_NOFOLLOW` és `dir_fd` használatával rögzített könyvtárdeskriptoron
+  keresztül nyit meg, majd újra ellenőrzi az inode-azonosságot.
 - A forrás normál, felhasználó tulajdonú fájl lehet csak; symlink és
   hardlink tiltva.
 - Legfeljebb 1 MB fájl; az olvasás előtt méret- és módellenőrzés.
@@ -46,7 +48,8 @@ python -m unittest discover -s tests -p 'test_installed_source_attestation.py' -
 python -m compileall -q updater/installed_source_attestation.py
 ```
 
-A fejlesztői izolált környezetben 15/15 teszt PASS. A GitHub Actions
+A fejlesztői izolált környezetben 17/17 teszt PASS, beleértve a
+fájl és a szülőkönyvtár megnyitás közbeni kicserélését. A GitHub Actions
 eredménye önálló ellenőrzési kapu. Pi-n még nem futtattuk.
 
 A **helyi futtatás** csak a megfelelő, hitelesített repository checkout
