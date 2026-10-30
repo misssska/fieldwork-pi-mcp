@@ -44,3 +44,36 @@ A Pi MCP v0.6.1 kapcsolat 2026-10-30-án ismét válaszolt. Az újabb `fieldwork
 - A v0.6.1 -> aszinkron teszt -> aszinkron indítás láncot külön, hash-ellenőrzött és helyben jóváhagyott kiadásban kell aktiválni. **A GitHub-kód nem telepített Pi-kód.**
 
 A következő elfogadási feltétel: a rögzített `fieldwork-stage` projekt `ps -a` állapotának biztonságos lekérdezése, majd a konkrét build/start hiba elkülönítése. `active.json` automatikus törlése vagy duplikált indítás tilos.
+
+## Összevont kvalifikációs csomag – 2026-10-30
+
+A teljes statikus lifecycle-jelölt öt pontosan rögzített modult tartalmaz:
+
+- `release/stage_async.py` – aszinkron staging-teszt.
+- `release/async_overlay.py` – első, fail-closed MCP-bővítés.
+- `experimental/stage_inspect.py` – leállt/hiányzó konténereket is látó, kizárólag olvasási állapotellenőrzés.
+- `experimental/stage_start_async.py` – aszinkron staging-indítás tartós bizonylattal.
+- `experimental/lifecycle_overlay.py` – második, fail-closed MCP-bővítés.
+
+A `experimental/lifecycle_overlay.py` korábbi hibás annotációs anchorját javítottam: a tényleges `updater/async_overlay.py` által előállított `"fieldwork_stage_full_test", "fieldwork_stage_test_request", "fieldwork_stage_start"` sorrendre illeszkedik. A javítás nélkül a láncolt overlay `INTEGRATION_ANCHOR_MISMATCH` hibával megállhatott volna.
+
+A [`experimental/lifecycle_manifest.json`](../experimental/lifecycle_manifest.json) manifest SHA-256 értéke:
+`d500da3872ff05c22cefbc75fa8091fc30e39471a634926e127e3a48d13a1c0e`.
+
+A manifest és az öt modul byte-szintű SHA-256 egyezését külön ellenőriztem. A teljes manifestet tartalmazó Git snapshot: `45657a2592218b326f4ca75a63a78923e86bd69f`.
+
+Az [`experimental/lifecycle_qualification.py`](../experimental/lifecycle_qualification.py) csak a telepített MCP-forrás és manifest **kívülről megadott pontos hash-pinje** esetén állít elő statikus, nem telepítő minősítést. Ellenőrzi az öt fájl teljes listáját, SHA-256 értékét, Python AST-jét, a két betöltött overlay implementáció azonosságát és az öt új MCP-eszköz egyediségét. Minden esetben `activation_authorized=false`, `mcp_modified=false`, `production_modified=false`.
+
+**Ellenőrzés:** az izolált helyi kvalifikációs és overlay-lánc tesztek `11/11 PASS`, Python `compileall` PASS. A GitHubban új `tests/test_lifecycle_qualification.py` és `tests/test_lifecycle_manifest.py` tesztek is szerepelnek. A GitHub státusz API `statuses: []` és a PR-workflow lekérdezés `workflow_runs: []` választ adott; **ez nem CI PASS**, és nem helyettesíti a GitHub Actions futási naplót.
+
+**Pi-n ismét ellenőrizve:** MCP `v0.6.1`, release `FULL_TEST_PASS`, `STAGE_RUNNING_CHECK` üres Docker `ps` kimenettel, `STAGE_HEALTH_FAIL`. A staging továbbra is **BLOCKED**.
+
+### Aktiválás előtti kötelező, nem megkerülhető kapuk
+
+1. A Pi-n telepített főfájl friss, helyileg megbízható SHA-256 ellenőrzése és a tényleges telepített forrásra alkalmazott overlay-ellenőrzés. A korábbi hash driftet nem szabad elfogadni.
+2. A rögzített manifest és modulok immutábilis commitból történő, szigorúan ellenőrzött előkészítése. A jelenlegi v0.6.2 stager **nem támogatja** ezt az ötmodulos csomagot; külön, átvizsgált kiadási út kell.
+3. Pi-kompatibilis teljes teszt, köztük az aszinkron worker és a stage_manager zárolásának, crash/reboot, pid reuse és rollback forgatókönyveinek ellenőrzése.
+4. Kifejezett helyi jóváhagyás és atomikus, helyreállítható aktiválás a **meglévő** MCP/tunnel mellett.
+5. Az új `fieldwork_stage_inspect` csak olvasási vizsgálata; csak ezután lehet eldönteni, miért üres a staging konténerlista. Nincs vakon ismételt start vagy automatikus `active.json` törlés.
+
+A jelenlegi körben **nem történt Pi-telepítés, új tunnel, éles FieldWork-módosítás vagy staging-újraindítás**.
