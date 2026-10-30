@@ -24,8 +24,8 @@ TOOLS_NEW = TOOLS_OLD + '''    ("fieldwork_stage_start_request", "Queue fixed st
     ("fieldwork_stage_inspect", "Inspect fixed stage Docker container states including stopped services; no raw logs", {}, stage_inspect.status),
 '''
 
-ANNOTATION_OLD = '"fieldwork_stage_test_request", "fieldwork_stage_start", "fieldwork_stage_stop"'
-ANNOTATION_NEW = '"fieldwork_stage_test_request", "fieldwork_stage_start", "fieldwork_stage_start_request", "fieldwork_stage_stop"'
+ANNOTATION_OLD = '"fieldwork_stage_full_test", "fieldwork_stage_test_request", "fieldwork_stage_start"'
+ANNOTATION_NEW = '"fieldwork_stage_full_test", "fieldwork_stage_test_request", "fieldwork_stage_start", "fieldwork_stage_start_request"'
 
 class SourceDriftError(ValueError):
     pass
