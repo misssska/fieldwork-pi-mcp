@@ -36,6 +36,11 @@ class QualificationTests(unittest.TestCase):
         self.receipt = {
             "commit": COMMIT, "manifest_sha256": MANIFEST,
             "files": ["stage_async.py", "async_overlay.py"],
+            "file_sha256": {
+                "stage_async.py": hashlib.sha256(EXTENSION).hexdigest(),
+                "async_overlay.py": hashlib.sha256(
+                    (self.stage / "async_overlay.py").read_bytes()).hexdigest(),
+            },
             "status": "STAGED_NOT_INSTALLED",
         }
         self.write_receipt()
@@ -71,7 +76,7 @@ class QualificationTests(unittest.TestCase):
 
     def test_overlay_tamper_denied(self):
         (self.stage / "async_overlay.py").write_text("x = 1\n")
-        with self.assertRaisesRegex(q.QualificationError, "OVERLAY_IMPLEMENTATION_DRIFT"):
+        with self.assertRaisesRegex(q.QualificationError, "STAGE_CONTENT_HASH_MISMATCH"):
             q.qualify(COMMIT, MANIFEST, self.hash)
 
     def test_symlink_denied(self):
