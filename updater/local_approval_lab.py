@@ -83,10 +83,17 @@ def verify(token: dict, key: bytes, *, expected: dict, now: int | None = None) -
 
 
 def _safe_dir(path: Path) -> None:
-    require(path.is_dir() and not path.is_symlink(), "REPLAY_DIR_UNSAFE")
+    home = Path.home()
+    require(path.is_relative_to(home), "REPLAY_DESTINATION_DENIED")
+    for part in (path, *path.parents):
+        if part == home.parent:
+            break
+        require(part.is_dir() and not part.is_symlink(), "REPLAY_DIR_UNSAFE")
+        st = part.stat()
+        require(st.st_uid == os.getuid() and not (st.st_mode & 0o022),
+                "REPLAY_PARENT_PERMISSIONS_DENIED")
     st = path.stat()
-    require(st.st_uid == os.getuid() and not (st.st_mode & 0o077),
-            "REPLAY_DIR_PERMISSIONS_DENIED")
+    require(not (st.st_mode & 0o077), "REPLAY_DIR_PERMISSIONS_DENIED")
 
 
 def verify_and_consume(token: dict, key: bytes, *, expected: dict,
@@ -110,24 +117,21 @@ def verify_and_consume(token: dict, key: bytes, *, expected: dict,
     expected_dir = Path.home() / ".local/state/fieldwork-pi-mcp/local-approval/used"
     require(replay_dir == expected_dir, "REPLAY_DESTINATION_DENIED")
     _safe_dir(replay_dir)
-    target = replay_dir / nonce
+    # Anchor the create operation to the verified directory descriptor.
+    dirfd = os.open(replay_dir, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) |
+                    getattr(os, "O_NOFOLLOW", 0))
     try:
-        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
-                     getattr(os, "O_NOFOLLOW", 0), 0o600)
-    except FileExistsError as exc:
-        raise ApprovalDenied("APPROVAL_REPLAY_DENIED") from exc
-    try:
+        try:
+            fd = os.open(nonce, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                         getattr(os, "O_NOFOLLOW", 0), 0o600, dir_fd=dirfd)
+        except FileExistsError as exc:
+            raise ApprovalDenied("APPROVAL_REPLAY_DENIED") from exc
         with os.fdopen(fd, "wb") as f:
             f.write((nonce + "\n").encode("ascii"))
             f.flush()
             os.fsync(f.fileno())
-        dirfd = os.open(replay_dir, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-        try:
-            os.fsync(dirfd)
-        finally:
-            os.close(dirfd)
-    except BaseException:
-        # Fail closed: do not remove a potentially consumed token.
-        raise
+        os.fsync(dirfd)
+    finally:
+        os.close(dirfd)
     return {"status": "PROOF_CONSUMED_NO_ACTIVATION",
             "nonce": nonce, "activation_authorized": False}
