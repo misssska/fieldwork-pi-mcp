@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "files": [
+    {
+      "path": "stage_async.py",
+      "sha256": "add1db45504e53af0663bc7432d893a35819b8fcf6acc057451182c7f1dca964"
+    },
+    {
+      "path": "async_overlay.py",
+      "sha256": "0a0591f2414194fcf64e70274ab53a08fceb130f90d3afd650530ea06ab44afd"
+    }
+  ]
+}
