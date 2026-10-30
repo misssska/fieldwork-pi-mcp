@@ -160,7 +160,8 @@ def compile_candidate(current: bytes, overlay: bytes) -> bytes:
     audit_old = '"fieldwork_stage_prepare", "fieldwork_stage_full_test", "fieldwork_stage_start"'
     audit_new = '"fieldwork_stage_prepare", "fieldwork_stage_full_test", "fieldwork_stage_start", "fieldwork_artifact_begin", "fieldwork_artifact_append", "fieldwork_artifact_status", "fieldwork_artifact_finalize"'
     # Bound our implementation to the released overlay's exact source constants:
-    require(repr(import_anchor) in patch and repr(import_add) in patch,
+    require('IMPORT_OLD = "import stage_manager\\n"' in patch and
+            'IMPORT_NEW = IMPORT_OLD + "import artifact_inbox_adapter\\n"' in patch,
             "RELEASE_IMPORT_ANCHORS_DIFFER")
     require(tools_anchor in patch and tools_added in patch,
             "RELEASE_TOOL_ANCHORS_DIFFER")
