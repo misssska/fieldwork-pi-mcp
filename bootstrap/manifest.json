@@ -3,19 +3,19 @@
   "files": [
     {
       "path": "updater/stage_release.py",
-      "sha256": "eb4324ed13542b63a5dab0edc3183fc256fe095a5e21e07c426c507f61a524e6"
+      "sha256": "6860f699deab15e8774e863bb91a03cc35d4fa80ab54f475813180cbf29d5998"
     },
     {
       "path": "updater/compatibility.py",
-      "sha256": "ef8940996be6fe5f6e2e5a5567e51ae42f2a0a4e8a10cf306261e7b8b80b3b0e"
+      "sha256": "7e9fa53fbdbbb3f7f7058f365d6f7fe5bc71fba12b89146ec67d00e486a6a150"
     },
     {
       "path": "updater/async_overlay.py",
-      "sha256": "0a0591f2414194fcf64e70274ab53a08fceb130f90d3afd650530ea06ab44afd"
+      "sha256": "5dd25153108fb76f296549425649ac2db5f0649f2133bf884a1fab5504b82af4"
     },
     {
       "path": "updater/qualification.py",
-      "sha256": "16fb56d5afdc412360bf4d62261d6794d2029597520392710ca7cbea9877784a"
+      "sha256": "e95ee771b430d030867bc37c688694518b8faa8b1edea643efb41bd397a7e957"
     }
   ]
 }
