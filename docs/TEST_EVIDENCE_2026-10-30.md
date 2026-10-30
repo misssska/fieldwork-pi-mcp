@@ -32,3 +32,14 @@ Eredmény: **71 teszt, OK**, 1.162 másodperc. Az r2 ZIP önmagában nem önáll
 ## Biztonsági döntés
 
 A Pi-n nincs végrehajtva telepítés. Az éles `/opt/fieldwork` és a tunnel változatlan. Következő kapu: a tényleges Pi MCP-forrás megbízható összevetése és a lokálisan jóváhagyható frissítési mechanizmus tesztelése.
+
+## In-memory Async Stage overlay
+
+A `updater/async_overlay.py` a v0.6.1 `fieldwork_mcp.py` forráson kizárólag három célzott, egyedi integrációs horgonyt cserél. Az eredeti ZIP-ből származó alapfájllal a helyi összevetés eredménye:
+
+- Előállított SHA-256: `5729060acf8b833523921954f232558db5c853aa87fb366e7f4c1488cd38f33f`
+- Az r2 csomag `fieldwork_mcp.py` SHA-256 értéke ugyanez.
+- **Bájtról bájtra azonos:** `True`.
+- Másodszori alkalmazás: `ALREADY_PATCHED_OR_PARTIAL`, biztonságos elutasítás.
+
+A Pi tényleges `7d24bcfa…` forrására **nem** futott az overlay. Ez csak az ismert v0.6.1 alapra igazolt, a Pi-n nem telepítettük.
