@@ -31,6 +31,8 @@ jobs:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 12
+    env:
+      M15_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - name: Preflight and package offline candidate as unprivileged user
@@ -42,7 +44,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_m15_*.py' -v
           python3 -m unittest discover -s tests -p 'test_m15e_inactive_bundle.py' -v
           python3 -m updater.m15_portable_bundle \
-            --source-root "$GITHUB_WORKSPACE" --commit "$GITHUB_SHA" \
+            --source-root "$GITHUB_WORKSPACE" --commit "$M15_SOURCE_COMMIT" \
             --out "$RUNNER_TEMP/m15b-candidate.tar.gz"
           python3 - <<'PY'
           import os
@@ -51,7 +53,7 @@ jobs:
           from updater import m15_portable_bundle as b
           raw = Path(os.environ["RUNNER_TEMP"] + "/m15b-candidate.tar.gz").read_bytes()
           report = m.verify_only(raw, trusted_sha=b.sha(raw),
-                                 trusted_commit=os.environ["GITHUB_SHA"])
+                                 trusted_commit=os.environ["M15_SOURCE_COMMIT"])
           assert report["installation_performed"] is False
           assert report["status"] == "M15B_INACTIVE_BOOTSTRAP_PREFLIGHT_PASS"
           print("M15B_UNPRIVILEGED_INACTIVE_PREFLIGHT_PASS")
@@ -69,7 +71,7 @@ jobs:
           test "$(stat -c '%a' /opt)" = 755
           # This is an ephemeral GitHub runner only. sudo here is not an
           # approval mechanism for a real Pi and no unit is registered.
-          sudo env M15B_COMMIT="$GITHUB_SHA" \
+          sudo env M15B_COMMIT="$M15_SOURCE_COMMIT" \
             M15B_ARCHIVE="$RUNNER_TEMP/m15b-candidate.tar.gz" \
             python3 -s - <<'PY'
           import os
