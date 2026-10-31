@@ -39,7 +39,7 @@ MODULE_PINS = {
     "mcp_self_diagnostics.py":
         "38fa49a6233ff8f528852076d7a6e7c0a86d405e95145427fa74e98462b63885",
     "mcp_self_service_overlay.py":
-        "9a44572625c9e557faab1d2f50c7bed29e5a3db1bd21fbf56056c7f58de87e05",
+        "4bf4ee041ddfe8b952d6c7bd5ebd8c195553bfba9f455b33b75fea0ad9071c4d",
     "sandbox_cleanup_overlay.py":
         "98d591d6d34e864f98b014361853f9bc180dbeb089e67542212d45ffe49f2a9a",
 }
@@ -330,7 +330,12 @@ def main() -> int:
     try:
         result = execute_once(args.commit, confirm=args.activate)
     except (ActivationStop, OSError, ValueError, EOFError) as exc:
-        reason = str(exc) if isinstance(exc, ActivationStop) else type(exc).__name__
+        # The exact safe rejection code is needed to diagnose a Pi-only
+        # source/AST drift without asking for raw source or credentials.
+        # Suppress arbitrary exception details and paths.
+        message = str(exc)
+        reason = (message if re.fullmatch(r"[A-Z][A-Z0-9_]{2,95}", message)
+                  else type(exc).__name__)
         print("M12_STOP=" + reason, flush=True)
         return 2
     return 0 if result["status"] == "M12_READY_TOOL_DISCOVERY_PENDING" else 3
