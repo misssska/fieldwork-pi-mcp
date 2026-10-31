@@ -41,3 +41,5 @@ jobs:
         run: sha256sum updater/linux_upgrade_trust_gate.py updater/linux_upgrade_operator_app.py updater/linux_upgrade_review_ui.py deploy/systemd/linux-mcp-operator.service
       - name: Print M14E stage lifecycle exact pinned SHA256
         run: sha256sum updater/linux_stage_existing_lifecycle.py
+      - name: Pin M14F stage Compose and sandbox ownership SHA256
+        run: sha256sum updater/linux_stage_compose_contract.py updater/linux_sandbox_ownership_gate.py
