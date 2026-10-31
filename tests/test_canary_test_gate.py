@@ -45,7 +45,7 @@ class TestGate(unittest.TestCase):
             path.chmod(0o600)
             deps[key] = hashlib.sha256(blob).hexdigest()
         p = self.home / runner.PIN_REL
-        p.parent.mkdir(parents=True, mode=0o700)
+        p.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         p.write_text(json.dumps({
             "schema": 1, "profile": runner.PROFILE, "image": IMAGE,
             "stage_testing_only": True, "locally_approved": True,
