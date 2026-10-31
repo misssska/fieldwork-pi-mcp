@@ -144,11 +144,20 @@ def _audit_tree(repo: Path, commit: str) -> dict:
 
 
 def preflight(expected_commit: str) -> dict:
-    """Read the production HEAD and tracked Git metadata, changing nothing."""
+    """Read production HEAD/metadata without writing even private directories."""
+    q.require(os.geteuid() != 0, "BOOTSTRAP_ROOT_DENIED")
     q.require(type(expected_commit) is str and
               HEX40.fullmatch(expected_commit) is not None,
               "EXPECTED_COMMIT_REQUIRED")
-    _private_parent()
+    home = Path.home()
+    _safe_dir(home)
+    current_parent = home
+    for part in TARGET.parts[:-1]:
+        current_parent = current_parent / part
+        if current_parent.exists() or current_parent.is_symlink():
+            _safe_dir(current_parent)
+        else:
+            break
     q.require(SOURCE.is_dir() and not SOURCE.is_symlink(),
               "PRODUCTION_REPO_NOT_DIRECTORY")
     target = Path.home() / TARGET
