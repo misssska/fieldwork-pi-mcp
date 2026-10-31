@@ -50,16 +50,16 @@ Kész források:
   A natív CI ezt a belépési pontot is teszteli.
 
 **Példakiadás, immutábilis Git commit:**
-`c8884ff952fc2f0f462a5a53b44f03ea8536cab3`
+`7a4c7707219fe88ab2b3a48d3f2f724b99cd1efa`
 
 **Ennek a csomagnak a külső SHA256 lenyomata:**
-`e42c60b76176758b2ea5641508c04e047b81d1edddbaaab183fbf09a88804a9f`
+`c0057355d1d9be04ddbe89819c57d18545b76f55201e31d5d17b23dccf080fa3`
 
 **Bizonyíték:**
-[GitHub Actions – M15 két architektúra](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41227836529):
+[GitHub Actions – M15 két architektúra](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41227954523):
 mindkét build, két build összehasonlítása és
 a keresztarchitektúrás bájtonkénti összevetés PASS.
-[GitHub teljes biztonsági suite](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41227839992):
+[GitHub teljes biztonsági suite](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41227957800):
 **771 updater + 12 bootstrap = 783/783 PASS**.
 
 Az újabb Actions commitokhoz **új, külön SHA256 és
