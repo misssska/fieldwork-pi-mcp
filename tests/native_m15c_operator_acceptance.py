@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import pwd
 import secrets
+import socket
 import subprocess
 import sys
 import time
@@ -96,7 +97,11 @@ def main():
     ):
         private_file(name, content, uid=user.pw_uid, gid=user.pw_gid)
 
-    cmd = ["runuser", "-u", USER, "--", "/usr/bin/python3", "-s", str(ENTRY)]
+    # setpriv execs Python in place. runuser may spawn an additional child:
+    # killing its parent does NOT guarantee the HTTP listener is stopped.
+    cmd = ["setpriv", "--reuid", str(user.pw_uid),
+           "--regid", str(user.pw_gid), "--clear-groups",
+           "/usr/bin/python3", "-s", str(ENTRY)]
     checked = subprocess.run(cmd + ["--check"], capture_output=True,
                              text=True, timeout=8)
     assert checked.returncode == 0, checked.stderr
@@ -165,6 +170,17 @@ def main():
             proc.kill()
             proc.wait(timeout=3)
     assert proc.poll() is not None
+    # Detect an orphaned child or stale listener BEFORE systemd starts.
+    for _ in range(30):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.settimeout(0.2)
+            occupied = probe.connect_ex(("127.0.0.1", 8767)) == 0
+        if not occupied:
+            break
+        time.sleep(0.1)
+    else:
+        raise AssertionError("M15C_ORPHANED_APPROVAL_LISTENER_DENIED")
+    print("M15C_NO_ORPHANED_LOOPBACK_LISTENER_PASS", flush=True)
     print("M15C_NONROOT_PROCESS_EXIT_PASS", flush=True)
     print("M15C_NO_SYSTEMD_DOCKER_OR_LIVE_MCP_CHANGE", flush=True)
 
