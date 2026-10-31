@@ -127,3 +127,61 @@ Az aktív Pi MCP 0.6.1 nem ad ki globális Docker inventoryt.
 Egy helyben jóváhagyott, kizárólag olvasási MCP-képesség
 kiadása és hoston való igazolása szükséges; ennek hiányában
 nincs automatikus Pi audit, restart vagy konténereltávolítás.
+
+## 2026-10-31 – Egyparancsos, integritásellenőrzött helyi audit
+
+A korábbi GitHub-jelöltnek már van **fix, argumentummentes** belépője:
+`python3 updater/pi_sandbox_orphan_audit.py`. Az auditori modul
+továbbra sem regisztrált MCP-eszköz, és a ChatGPT továbbra sem
+rendelkezik engedéllyel a Pi Docker-socketének hostszintű olvasására.
+
+A korábbi futás neve és címkéje esetleg nem tartalmazza a teljes
+run ID-t; ezért az új verzió az összes tárolt konténerből
+**korlátozott, titokmentes osztályozást** is ad:
+`recognized_compose_project_label_count`,
+`unclassified_container_count`,
+`unclassified_container_sample` (max. 16 db, csak 64 hex ID
+és állapot), `unclassified_sample_truncated`.
+A két ismert Compose-projekt címkéjét felismeri, de a címkék
+önbevallott értékek, nem hiteles tulajdonjogi bizonyítékok.
+Sem egy egyezés, sem a nulla találat nem ad törlési jogot.
+
+**Integritásbizonyíték:** natív GitHub Actions
+[CI #41206659441](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41206659441)
+**468 updater + 12 bootstrap = 480/480 PASS**;
+[Docker CI #41206655412](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41206655412)
+**SUCCESS**, a rögzített CLI valódi Docker daemonon is
+fail-closed működik.
+
+- Rögzített commit:
+  `17323aadb05a41cbebe41af19199c310bacbe93c`
+- A `updater/pi_sandbox_orphan_audit.py` teljes, GitHub CI által
+  kiírt SHA256:
+  `92ac35f8246113db26eb1d89a5c081ff59ae89b73683d6fa832556cf9d573944`
+
+**Egyetlen helyi operátori parancs**, amely nem ment ZIP-et,
+nem telepít MCP-t, nem használ `sudo`-t, és kizárólag a fenti
+SHA256-mal egyező forrást hajtja végre. Csak akkor szabad futtatni,
+ha a Pi tulajdonosa kifejezetten jóváhagyja a
+*csak olvasási Docker-host inventory* lekérdezést.
+
+```sh
+python3 -c 'import hashlib,urllib.request;u="https://raw.githubusercontent.com/misssska/fieldwork-pi-mcp/17323aadb05a41cbebe41af19199c310bacbe93c/updater/pi_sandbox_orphan_audit.py";b=urllib.request.urlopen(u,timeout=15).read(32769);assert len(b)<32769 and hashlib.sha256(b).hexdigest()=="92ac35f8246113db26eb1d89a5c081ff59ae89b73683d6fa832556cf9d573944","AUDIT_SHA256_MISMATCH";exec(compile(b,"sha256_verified_m10_audit.py","exec"))'
+```
+
+A fenti program csak olvassa a Docker host teljes listáját.
+A letöltött és SHA-ellenőrzött forrást memóriából futtatja,
+nem módosítja az éles FieldWork, Docker vagy MCP konfigurációt.
+A telepített Python3 és a helyi felhasználó meglévő Docker-
+lekérdezési jogosultsága szükséges. Ha a hozzáférés tiltott,
+`AUDIT_BLOCKED` kimenetet ad; tilos automatikusan `sudo`-val
+vagy új jogosultság adásával megismételni.
+
+Az eredmény egyetlen, titokmentes JSON. Az operátor ezt
+visszamásolhatja a ChatGPT-be további **kiolvasó elemzéshez**.
+Amíg nincs a régi hibás runnal összeegyeztethető, független
+hostoldali bizonyíték, a tesztkörnyezeti cleanup státusz
+**BLOCKED** marad. Az audit NEM hajt végre takarítást.
+
+**Helyi futási bizonyíték a Raspberry Pi-ről jelenleg nincs.**
+A forrás és a workflow kizárólag a GitHub fejlesztői ágán van.
