@@ -9,12 +9,16 @@ on:
       - updater/linux_upgrade_review_ui.py
       - updater/linux_upgrade_local_handoff.py
       - updater/linux_upgrade_trust_gate.py
+      - updater/linux_upgrade_operator_app.py
+      - deploy/systemd/linux-mcp-operator.service
       - tests/test_linux_upgrade_gate.py
       - tests/test_linux_upgrade_inbox.py
       - tests/test_linux_upgrade_local_transaction.py
       - tests/test_linux_upgrade_review_ui.py
       - tests/test_linux_upgrade_local_handoff.py
       - tests/test_linux_upgrade_trust_gate.py
+      - tests/test_linux_upgrade_operator_app.py
+      - tests/test_linux_upgrade_systemd_unit.py
       - .github/workflows/m14-linux-update-gate.yml
   workflow_dispatch:
 permissions:
@@ -38,6 +42,6 @@ jobs:
           set -euo pipefail
           test "$(id -u)" -ne 0
           python3 -m unittest discover -s tests -p 'test_linux_upgrade_*.py' -v
-          python3 -m compileall -q updater/linux_upgrade_gate.py updater/linux_upgrade_inbox.py updater/linux_upgrade_local_transaction.py updater/linux_upgrade_review_ui.py updater/linux_upgrade_local_handoff.py updater/linux_upgrade_trust_gate.py
+          python3 -m compileall -q updater/linux_upgrade_gate.py updater/linux_upgrade_inbox.py updater/linux_upgrade_local_transaction.py updater/linux_upgrade_review_ui.py updater/linux_upgrade_local_handoff.py updater/linux_upgrade_trust_gate.py updater/linux_upgrade_operator_app.py
           echo "M14_OFFLINE_APPROVAL_AND_RECOVERY_PASS"
           echo "M14_NO_PI_DEPLOYMENT_OR_MCP_TOOL_REGISTRATION"
