@@ -6,6 +6,11 @@ on:
       - updater/linux_host_privilege_preflight.py
       - tests/test_linux_host_privilege_preflight.py
       - .github/workflows/m15d-native-self-audit.yml
+  pull_request:
+    paths:
+      - updater/linux_host_privilege_preflight.py
+      - tests/test_linux_host_privilege_preflight.py
+      - .github/workflows/m15d-native-self-audit.yml
   workflow_dispatch:
 
 permissions:
