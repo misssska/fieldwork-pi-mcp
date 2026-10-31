@@ -721,3 +721,21 @@ nem másoltunk alkalmazásforrást**.
 `M5_DEPLOY_BLOCKED`,
 `M6_PARITY_BLOCKED`,
 `PRODUCTION_UNCHANGED`.
+
+
+## 18. FieldWork teljesebb privát forrás-előkészítés – read-only exporter jelölt (2026-10-31)
+
+**Miért:** a tényleges M5 Vitest CI-hez nem elegendő az M4/M5 változáscsomagok vagy a Pi régi tracked HEAD-je; a Pi `/opt/fieldwork` meglévő, *dirty* munkafáját biztonságosan külön privát forrás-pillanatképbe kell menteni az aktuális változások elvesztése nélkül. Az ehhez szükséges külön FieldWork-alkalmazás GitHub repository továbbra sem áll rendelkezésre.
+
+**Elkészült külön, jelenleg a ChatGPT Libraryben tárolt előkészítő csomag:**
+- `/FieldWork/FieldWork_Private_Source_Snapshot_Package_20261031.zip`
+- SHA256: `4a644da6aa885f1a18d1c50c3664566d84c869000f528d603f212007f97bf389`
+- A csomagban: `fieldwork_private_source_snapshot.py`, `test_fieldwork_private_source_snapshot.py`, `FIELDWORK_PRIVATE_SOURCE_SNAPSHOT_README_HU.md`, az egész csomag pontos SHA256 manifestje.
+- **13/13 valós Python unittest PASS** izolált szintetikus Git checkouton, beleértve: dirty munkafa változatlanul marad, tracked és megengedett untracked kód, determinisztikus archive SHA, célfájl nem írható felül, source rooton kívüli 0600 ZIP, symlink és traversal tiltás, privát credential minta STOP, hiányzó npm lock STOP, független archive verifier és mesterséges archive tamper tiltás.
+- A ZIP megőriz forrás SHA256 manifestet és a HEAD-et; kizárja a `.env`, `.git`, `node_modules`, `storage`, `uploads`, backupok és `reference/` mintaanyagokat. Kizárólag megengedett, legfeljebb 3 MiB-os forráskód-konfigurációs fájlok és néhány dokumentum kerülhetne a **később generált** forrás-pillanatképbe.
+- Nem futtat `git add`, `commit`, `push`, `sudo`, `docker`, hálózati műveletet, nem módosítja az eredeti checkoutot. A későbbi exporter futtatása **helyileg jóváhagyandó**, nem MCP távoli host shell.
+- **Korlát:** érzékeny adatok teljes automatikus kiszűrését egyetlen secret-scanner nem garantálja, ezért minden privát GitHub-feltöltés előtt az archive tartalma kézi felülvizsgálatot igényel. A kódfájlos snapshot nem azonos a teljes Git-történettel vagy a teljes üzemelő alkalmazás biztonsági mentésével.
+
+**Ami NEM történt:** a valódi Pi `/opt/fieldwork` fájljairól **nem készült export**, nem keletkezett privát GitHub-repository, nem történt push vagy Pi-host bináris telepítés; ez csak **tesztelt, készen átadható kódmentési eszköz**, nem egy megvalósult app-backup. A Pi-en egyelőre a meglévő MCP `v0.6.1`, production és staging változatlan.
+
+**Következő blokk:** az operátor által biztonságosan elindított lokális read-only snapshot + manifest/secret audit, majd egyetlen privát FieldWork app GitHub-repository és a már elkészült `docs/M5_PRIVATE_FRONTEND_CI_HU.md` teljes frontendkapu. M5 teljes frontend + PostgreSQL E2E **PENDING**, release továbbra is BLOCKED.
