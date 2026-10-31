@@ -29,12 +29,12 @@ EXPECTED = frozenset({
 })
 
 
-def _own_dir(folder: Path) -> None:
+def _own_dir(folder: Path, *, private: bool = False) -> None:
     q.require(folder.is_dir() and not folder.is_symlink(),
               "STAGE_DIRECTORY_UNSAFE")
     st = folder.stat()
     q.require(st.st_uid == os.geteuid() and
-              stat.S_IMODE(st.st_mode) & 0o077 == 0,
+              (stat.S_IMODE(st.st_mode) & (0o077 if private else 0o022)) == 0,
               "STAGE_DIRECTORY_PERMISSIONS_DENIED")
 
 
@@ -50,14 +50,14 @@ def _own_file(path: Path, maximum: int) -> bytes:
 
 def snapshot_signature(root: Path) -> dict:
     """Hash all source file paths, sizes and SHA256, excluding the receipt."""
-    _own_dir(root)
+    _own_dir(root, private=True)
     records: list[tuple[str, int, str]] = []
     total = 0
     for current, dirs, files in os.walk(root, followlinks=False):
         current_path = Path(current)
-        _own_dir(current_path)
+        _own_dir(current_path, private=True)
         for name in dirs:
-            _own_dir(current_path / name)
+            _own_dir(current_path / name, private=True)
         for name in files:
             p = current_path / name
             rel = p.relative_to(root).as_posix()
@@ -96,9 +96,9 @@ def inspect_stage(transfer_id: str) -> dict:
         base = base / piece
         _own_dir(base)
     base = base / STAGE_NAME
-    _own_dir(base)
+    _own_dir(base, private=True)
     target = base / transfer_id
-    _own_dir(target)
+    _own_dir(target, private=True)
     receipt_bytes = _own_file(target / RECEIPT, 16 * 1024)
     try:
         receipt = json.loads(receipt_bytes)
