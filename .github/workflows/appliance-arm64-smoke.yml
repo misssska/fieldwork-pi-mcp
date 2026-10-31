@@ -1,0 +1,91 @@
+name: ARM64 canary appliance real Docker smoke (synthetic fixture)
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths: ['appliance/**', 'updater/canary_appliance_image.py', 'updater/canary_test_runner.py', '.github/workflows/appliance-arm64-smoke.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify native platform and build fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          docker buildx version
+          stage="$HOME/.local/state/fieldwork-pi-mcp/canary-stage-workspaces/99999999999999999999999999999999"
+          mkdir -p "$stage/frontend/scripts" "$stage/server/tests"
+          cat > "$stage/frontend/package.json" <<'EOF'
+          {"name":"fieldwork-appliance-fixture","version":"1.0.0","private":true,"scripts":{"typecheck":"node scripts/check.cjs typecheck","lint":"node scripts/check.cjs lint","test":"node scripts/check.cjs vitest","build":"node scripts/check.cjs build"}}
+          EOF
+          cat > "$stage/frontend/package-lock.json" <<'EOF'
+          {"name":"fieldwork-appliance-fixture","version":"1.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"fieldwork-appliance-fixture","version":"1.0.0"}}}
+          EOF
+          cat > "$stage/frontend/scripts/check.cjs" <<'EOF'
+          const fs = require('fs'), assert = require('assert');
+          const suite = process.argv[2];
+          assert(['typecheck','lint','vitest','build'].includes(suite));
+          assert(fs.existsSync('/source/frontend/package.json'));
+          fs.writeFileSync('/work/' + suite + '.ok', 'PASS\n');
+          console.log('FIXTURE_' + suite.toUpperCase() + '_PASS');
+          EOF
+          printf '%s\n' 'psycopg[binary]==3.2.10' > "$stage/server/requirements.txt"
+          printf '%s\n' '-r requirements.txt' 'pytest==8.4.2' > "$stage/server/requirements-dev.txt"
+          cat > "$stage/server/tests/test_database.py" <<'EOF'
+          import os
+          import psycopg
+          def test_isolated_postgres_is_real():
+              assert os.environ["FIELDWORK_TESTING"] == "1"
+              url = os.environ["DATABASE_URL"].replace("postgresql+psycopg://", "postgresql://")
+              with psycopg.connect(url) as conn:
+                  with conn.cursor() as cur:
+                      cur.execute("SELECT current_database(), 1")
+                      assert cur.fetchone() == ("fieldwork_test", 1)
+          EOF
+          echo "fixture_root=$stage" >> "$GITHUB_ENV"
+      - name: Build ARM64 image with resolved base digests (CI only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull node:24-bookworm
+          docker pull postgres:18-bookworm
+          node_digest="$(docker image inspect --format '{{index .RepoDigests 0}}' node:24-bookworm | cut -d@ -f2)"
+          pg_digest="$(docker image inspect --format '{{index .RepoDigests 0}}' postgres:18-bookworm | cut -d@ -f2)"
+          test -n "$node_digest"
+          test -n "$pg_digest"
+          docker buildx build --platform linux/arm64 --load --pull=false --progress=plain \
+            --build-context "fieldwork_base=$fixture_root" \
+            --build-context "policy=$GITHUB_WORKSPACE/appliance" \
+            --build-arg "NODE_BASE=node:24-bookworm@$node_digest" \
+            --build-arg "POSTGRES_BASE=postgres:18-bookworm@$pg_digest" \
+            --build-arg "FRONTEND_LOCK_SHA256=$(sha256sum "$fixture_root/frontend/package-lock.json" | cut -d' ' -f1)" \
+            --build-arg "BACKEND_REQUIREMENTS_SHA256=$(sha256sum "$fixture_root/server/requirements.txt" | cut -d' ' -f1)" \
+            --build-arg "BACKEND_DEV_REQUIREMENTS_SHA256=$(sha256sum "$fixture_root/server/requirements-dev.txt" | cut -d' ' -f1)" \
+            --build-arg "CONTRACT_SHA256=$(sha256sum appliance/fieldwork-test-suite | cut -d' ' -f1)" \
+            -f appliance/Dockerfile -t fieldwork-canary-test-appliance:arm64-ci-fixture appliance
+      - name: Attest local image and run all five real container suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          import subprocess
+          from updater import canary_appliance_image as attest, canary_test_runner as runner
+          image = subprocess.check_output(["docker","image","inspect","--format","{{.Id}}","fieldwork-canary-test-appliance:arm64-ci-fixture"],text=True).strip()
+          fixture = Path.home() / ".local/state/fieldwork-pi-mcp/canary-stage-workspaces" / ("9"*32)
+          deps = {k:hashlib.sha256((fixture / rel).read_bytes()).hexdigest() for k,rel in runner.DEPENDENCY_FILES.items()}
+          script_hash = hashlib.sha256(Path("appliance/fieldwork-test-suite").read_bytes()).hexdigest()
+          info = subprocess.check_output(["docker","image","inspect",image])
+          verified = attest.qualify(info,expected_image_id=image,dependency_sha256=deps,expected_script_sha256=script_hash,architecture="arm64")
+          assert verified["status"] == "APPLIANCE_IMAGE_PREFLIGHT_PASS_NOT_APPROVED"
+          for suite in runner.SUITES:
+              print("NATIVE_ARM64_SUITE",suite,flush=True)
+              subprocess.run(runner._command("9"*32,suite,image),check=True,timeout=runner.TIME_LIMIT[suite])
+          print("NATIVE_ARM64_SYNTHETIC_5_OF_5_PASS")
+          PY
