@@ -40,7 +40,7 @@ def _segments(path: str) -> tuple[str, ...]:
         SEGMENT.fullmatch(part) is not None and
         part not in (".", "..") and
         part not in PROHIBITED_EXACT and
-        not part.startswith(".env") and
+        not part.startswith(".") and
         not part.lower().endswith(PROHIBITED_SUFFIXES)
         for part in parts
     ), "GIT_TREE_PATH_DENIED")
@@ -72,6 +72,10 @@ def _source_policy(path: str) -> str:
               "\x00" not in path and "\\" not in path,
               "GIT_TREE_PATH_INVALID")
     if path.startswith(".github/") and len(path.split("/")) >= 3:
+        # Metadata is omitted but its name must still be a safe Git path.
+        q.require(all(SEGMENT.fullmatch(p) is not None and p not in (".", "..")
+                      for p in path.split("/")),
+                  "GIT_METADATA_PATH_DENIED")
         return "OMIT"
     if path in OMIT_EXACT or any(
         path.startswith(name + "/") for name in OMIT_TOP_LEVEL
