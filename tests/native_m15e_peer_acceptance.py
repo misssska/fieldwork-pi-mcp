@@ -16,6 +16,7 @@ import time
 import socket
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from updater import linux_approval_redeemer as redemption
 from updater import linux_upgrade_gate as gate
 
