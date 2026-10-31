@@ -25,3 +25,5 @@ jobs:
         run: sha256sum updater/activate_artifact_extension_v2.py
       - name: Print SHA256 of single-shot read-only Pi host auditor
         run: sha256sum updater/pi_sandbox_orphan_audit.py
+      - name: Print pinned M12 module SHA256 inventory
+        run: sha256sum updater/mcp_self_diagnostics.py updater/mcp_self_service_overlay.py updater/sandbox_cleanup_overlay.py
