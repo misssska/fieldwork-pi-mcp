@@ -24,10 +24,12 @@ COPY --from=policy fieldwork-test-suite /usr/local/bin/fieldwork-test-suite
 ARG FRONTEND_LOCK_SHA256
 ARG BACKEND_REQUIREMENTS_SHA256
 ARG BACKEND_DEV_REQUIREMENTS_SHA256
+ARG CONTRACT_SHA256
 RUN set -eu; \
     test "$(sha256sum /build/frontend/package-lock.json | cut -d' ' -f1)" = "${FRONTEND_LOCK_SHA256}"; \
     test "$(sha256sum /build/server/requirements.txt | cut -d' ' -f1)" = "${BACKEND_REQUIREMENTS_SHA256}"; \
     test "$(sha256sum /build/server/requirements-dev.txt | cut -d' ' -f1)" = "${BACKEND_DEV_REQUIREMENTS_SHA256}"; \
+    test "$(sha256sum /usr/local/bin/fieldwork-test-suite | cut -d' ' -f1)" = "${CONTRACT_SHA256}"; \
     cd /build/frontend; \
     npm ci --ignore-scripts --no-audit --no-fund; \
     python3 -m venv /opt/fieldwork-test-venv; \
@@ -42,7 +44,8 @@ LABEL org.fieldwork.appliance.profile="fieldwork-offline-test-appliance-v1" \
       org.fieldwork.appliance.backend-requirements-sha256="${BACKEND_REQUIREMENTS_SHA256}" \
       org.fieldwork.appliance.backend-dev-requirements-sha256="${BACKEND_DEV_REQUIREMENTS_SHA256}" \
       org.fieldwork.appliance.production-access="denied" \
-      org.fieldwork.appliance.scope="isolated-test-only"
+      org.fieldwork.appliance.scope="isolated-test-only" \
+      org.fieldwork.appliance.script-sha256="${CONTRACT_SHA256}"
 
 ENV PATH="/opt/fieldwork-test-venv/bin:/usr/lib/postgresql/18/bin:/usr/local/bin:/usr/bin:/bin"
 WORKDIR /work
