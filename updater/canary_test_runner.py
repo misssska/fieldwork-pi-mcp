@@ -13,6 +13,7 @@ All canary code is mounted read-only, without network or Docker socket.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -26,6 +27,7 @@ from . import canary_archive_qualifier as q
 from . import canary_stage_inspect as stage
 
 PIN_REL = Path(".local/state/fieldwork-pi-mcp/approved-test-appliance.json")
+KEY_REL = Path(".local/state/fieldwork-pi-mcp/local-test-attestation.key")
 TESTS_REL = Path(".local/state/fieldwork-pi-mcp/canary-test-receipts")
 IMAGE_RE = re.compile(r"fieldwork-canary-test-appliance@sha256:[a-f0-9]{64}\Z")
 HEX64 = re.compile(r"[a-f0-9]{64}\Z")
@@ -68,6 +70,9 @@ def _config() -> dict:
         path = path / part
         q.require(path.is_dir() and not path.is_symlink(),
                   "TEST_POLICY_PARENT_UNSAFE")
+        mode = path.stat()
+        q.require(mode.st_uid == os.geteuid() and not (mode.st_mode & 0o022),
+                  "TEST_POLICY_PARENT_PERMISSIONS_DENIED")
     pin = home / PIN_REL
     _owner_private(pin, directory=False)
     q.require(pin.stat().st_size <= 2048, "TEST_POLICY_TOO_BIG")
@@ -88,6 +93,20 @@ def _config() -> dict:
               IMAGE_RE.fullmatch(config["image"]) is not None,
               "TEST_IMAGE_NOT_LOCALLY_APPROVED")
     return config
+
+
+def _key() -> bytes:
+    """Return 32-byte locally provisioned secret; never accept from MCP args."""
+    path = Path.home() / KEY_REL
+    _owner_private(path, directory=False)
+    q.require(path.stat().st_size == 32, "TEST_ATTESTATION_KEY_INVALID")
+    return path.read_bytes()
+
+
+def attest(report: dict) -> str:
+    clean = {k: v for k, v in report.items() if k != "attestation_hmac_sha256"}
+    canonical = json.dumps(clean, sort_keys=True, separators=(",", ":")).encode()
+    return hmac.new(_key(), canonical, hashlib.sha256).hexdigest()
 
 
 def _root(tid: str) -> Path:
@@ -113,6 +132,7 @@ def _root(tid: str) -> Path:
 
 
 def _write(root: Path, report: dict) -> None:
+    report["attestation_hmac_sha256"] = attest(report)
     payload = (json.dumps(report, sort_keys=True,
                           separators=(",", ":")) + "\n").encode()
     q.require(len(payload) <= 16_384, "TEST_RECEIPT_TOO_BIG")
