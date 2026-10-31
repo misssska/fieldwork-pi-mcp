@@ -73,6 +73,9 @@ jobs:
           sudo useradd --system --user-group --no-create-home \
             --shell /usr/sbin/nologin linux-mcp-operator
           sudo chown -R linux-mcp-operator:linux-mcp-operator /var/lib/linux-mcp-operator
+          sudo runuser -u linux-mcp-operator -- /usr/bin/python3 -s \
+             /opt/linux-mcp-operator/linux_upgrade_operator_app.py --check
+          echo "M15C_DEDICATED_ACCOUNT_DIRECT_PREFLIGHT_PASS"
           sudo install -m 0644 deploy/systemd/linux-mcp-operator.service \
             /run/systemd/system/m15c-operator-smoke.service
           cleanup_m15c() {
