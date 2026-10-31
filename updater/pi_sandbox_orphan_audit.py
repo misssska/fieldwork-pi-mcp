@@ -80,17 +80,31 @@ def classify_inventory(output: bytes, run_id: str, *,
         raise HostAuditDenied("AUDIT_OUTPUT_INVALID") from exc
 
     candidates = []
+    unclassified = []
+    recognized_project_label_count = 0
+    # Labels are UNTRUSTED hints, not proof of ownership or cleanup safety.
+    recognized_project_labels = {
+        "com.docker.compose.project=fieldwork",
+        "com.docker.compose.project=fieldwork-stage",
+    }
     for cid, names, labels, state in containers:
         match_type = ("name" if _exact_run_marker(names, run_id)
                       else "label" if _exact_run_marker(labels, run_id)
                       else None)
+        state = (state if state in
+                 {"running", "exited", "created", "paused", "restarting", "dead"}
+                 else "unknown")
+        is_labeled_known_project = bool(
+            set(labels.split(",")) & recognized_project_labels)
+        if is_labeled_known_project:
+            recognized_project_label_count += 1
+        else:
+            unclassified.append({"container_id": cid, "state": state})
         if match_type:
             candidates.append({
                 "container_id": cid,
                 "match_type": match_type,
-                "state": state if state in
-                {"running", "exited", "created", "paused", "restarting", "dead"}
-                else "unknown",
+                "state": state,
                 # No names, labels, ports, mounts, or secrets are exposed.
             })
 
@@ -102,6 +116,13 @@ def classify_inventory(output: bytes, run_id: str, *,
         "inventory_container_count": len(containers),
         "candidate_count": len(candidates),
         "candidates": candidates,
+        "recognized_compose_project_label_count": recognized_project_label_count,
+        # IDs of containers without the two expected Compose-project labels
+        # support review when historical sandbox names omit run IDs. These
+        # are NOT proven orphans and may be unrelated/production workloads.
+        "unclassified_container_count": len(unclassified),
+        "unclassified_container_sample": unclassified[:16],
+        "unclassified_sample_truncated": len(unclassified) > 16,
         "inventory_sha256": hashlib.sha256(output).hexdigest(),
         "inventory_source": "local_docker_container_ls_all",
         "historical_cleanup_receipt_resolved": False,
