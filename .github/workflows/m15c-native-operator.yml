@@ -69,10 +69,12 @@ jobs:
           # runner ONLY. The original reference unit is unchanged and
           # nothing is installed to /etc/systemd or the real Pi.
           test ! -e /run/systemd/system/m15c-operator-smoke.service
-          sudo sed -e 's/User=linux-mcp-operator/User=nobody/' \
-                   -e 's/Group=linux-mcp-operator/Group=nogroup/' \
-            deploy/systemd/linux-mcp-operator.service | \
-            sudo tee /run/systemd/system/m15c-operator-smoke.service >/dev/null
+          # Actual dedicated service user, not the special shared nobody UID.
+          sudo useradd --system --user-group --no-create-home \
+            --shell /usr/sbin/nologin linux-mcp-operator
+          sudo chown -R linux-mcp-operator:linux-mcp-operator /var/lib/linux-mcp-operator
+          sudo install -m 0644 deploy/systemd/linux-mcp-operator.service \
+            /run/systemd/system/m15c-operator-smoke.service
           cleanup_m15c() {
             sudo systemctl stop m15c-operator-smoke.service >/dev/null 2>&1 || true
             sudo rm -f /run/systemd/system/m15c-operator-smoke.service
@@ -81,7 +83,11 @@ jobs:
           trap cleanup_m15c EXIT
           sudo systemd-analyze verify /run/systemd/system/m15c-operator-smoke.service
           sudo systemctl daemon-reload
-          sudo systemctl start m15c-operator-smoke.service
+          if ! sudo systemctl start m15c-operator-smoke.service; then
+            sudo systemctl status --no-pager m15c-operator-smoke.service || true
+            sudo journalctl -u m15c-operator-smoke.service --no-pager -n 30 || true
+            exit 1
+          fi
           sudo systemctl is-active --quiet m15c-operator-smoke.service
           test ! -r /var/lib/linux-mcp-operator/operator_token.key
           sudo python3 -s - <<'PY'
@@ -101,6 +107,11 @@ jobs:
               except OSError:
                   time.sleep(.1)
           else:
+              import subprocess
+              subprocess.run(["systemctl", "status", "--no-pager",
+                              "m15c-operator-smoke.service"], check=False)
+              subprocess.run(["journalctl", "-u", "m15c-operator-smoke.service",
+                              "--no-pager", "-n", "40"], check=False)
               raise AssertionError("M15C_SYSTEMD_LOCAL_AUTH_NOT_READY")
           credential=Path("/var/lib/linux-mcp-operator/operator_token.key").read_bytes()
           token=base64.b64encode(b"operator:"+credential).decode("ascii")
