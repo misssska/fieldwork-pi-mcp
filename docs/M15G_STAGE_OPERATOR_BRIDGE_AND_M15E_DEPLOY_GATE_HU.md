@@ -90,3 +90,54 @@ jogosultságok különválasztása, jóváhagyott
 host-integritás, valódi helyi user approval,
 teljes stage/sandbox-regresszió és rollback
 szükséges. Addig a Draft PR marad DRAFT.
+
+
+## M15-E telepítőcsomag – új, bizonyított inaktív kvalifikáció
+
+Az M15-E tényleges Python-forrásmodulja
+(`updater/linux_approval_redeemer.py`) bekerült a
+`updater/m15_portable_bundle.py` exact allowlistjébe.
+A meglévő `linux_upgrade_gate.py` függősége is a csomag
+része. Az M15-B root-owned, inaktív telepítője külön,
+rögzített Git commit + külső SHA256 + helyi admin-jóváhagyás
+mellett telepítheti a validált modult az
+`/opt/linux-mcp-operator/linux_approval_redeemer.py`
+fájlba, **a szolgáltatás bekapcsolása nélkül**.
+
+A `tests/test_m15e_inactive_bundle.py` 4 negatív/pozitív
+esetet fed le: determinisztikus archívum,
+exact forráslenyomat, hiányzó vagy hamisított M15-E
+elutasítása, jóváhagyás nélküli inaktív install STOP.
+
+**Valódi, de NEM Pi telepítés:** GitHub Actions
+[#41234739074](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41234739074):
+ARM64 és x86-64 natív Linuxon root-owned,
+írásvédett M15-E fájl és a hozzá tartozó manifest
+egy ideiglenes `/opt/linux-mcp-operator` célkönyvtárba
+való telepítése, SHA egyezése, hamis rollback pin és
+idegen fájl elutasítása, végül a jóváhagyott pontos
+rollback: **mindkét architektúra PASS**.
+
+**Bájtra reprodukálható csomag:** GitHub Actions
+[#41234739146](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41234739146):
+mindkét natív architektúrán egyezik a csomag.
+A konkrét, `6bbf02a082622cc52486582130ab6d0ac4e5f605`
+Git commit CI-verziójának archívum SHA256-ja:
+`bf997550d86fcc16ac9ce60c6a4e42ae7269b431832c46e1b23b1d4de01b6ca9`.
+Ez az SHA **nem automatikusan bizalmi publisher signature**,
+és későbbi commitnál újra kell számolni.
+
+**Teljes aktuális regresszió:** GitHub Actions
+[#41234739062](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41234739062):
+`832` updater + `12` bootstrap = **844/844 PASS**.
+M15-G natív teszt [#41234739071](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41234739071):
+**10/10 PASS** mindkét architektúrán.
+
+**Mi marad blokkolt?** A Pi oldali MCP csak inert
+artifactátvitelt támogat; az M15-B telepítő gyökérszintű
+helyi terminál/jóváhagyás nélkül nem hívható meg
+biztonságosan. Nincs független Pi-host audit, telepített
+operátori UID vagy systemd service, még nem készült
+a telefonos helyi jóváhagyás, nincs M15-E éles
+aktiválás. Az élő Pi `/opt/fieldwork` és Docker
+továbbra is változatlan.
