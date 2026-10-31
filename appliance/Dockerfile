@@ -32,6 +32,7 @@ RUN set -eu; \
     test "$(sha256sum /usr/local/bin/fieldwork-test-suite | cut -d' ' -f1)" = "${CONTRACT_SHA256}"; \
     cd /build/frontend; \
     npm ci --ignore-scripts --no-audit --no-fund; \
+    mkdir -p /build/frontend/node_modules; \
     python3 -m venv /opt/fieldwork-test-venv; \
     /opt/fieldwork-test-venv/bin/pip install --disable-pip-version-check --no-cache-dir -r /build/server/requirements-dev.txt; \
     install -d -m 0755 /opt/fieldwork-test; \
