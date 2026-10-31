@@ -793,3 +793,51 @@ nem snapshot/forrásbackup.
 `M5_CI_CONFIGURED_NOT_EXECUTED_ON_REAL_APP`;
 `M5_RELEASE_BLOCKED`;
 `PRODUCTION_AND_STAGE_UNCHANGED`.
+
+
+## 20. Pontos SHA-pinnelt, ZIP-másolás nélküli Pi read-only forrásexporter (2026-10-31)
+
+A privát app repository korábban létrejött; a teljes forrásbeemelés
+egyetlen megengedett megoldása a **helyben futtatott, forráshash-leltárt
+és ZIP-et gyártó read-only program**, mert a Pi MCP
+`fieldwork_read_file` szándékosan redaktál/csonkol bizonyos
+alkalmazásfájlokat. A helyi exportot nem szabad host/sandbox
+jogosultsági kerülőúttal távolról végrehajtani.
+
+A korábban **13/13 izolált teszten PASS** exportert
+szándékosan **csak általános programkódként** a nyilvános
+MCP fejlesztési ágra is feltettük:
+- `updater/fieldwork_private_source_snapshot.py`,
+  valódi SHA256 `8c769a19f6ce889df58458d249c5e995d5b6f72d86f9d45a6d07a4b2735dbe94`
+  (az eredeti lokális változattal byte-azonos);
+- `tests/test_fieldwork_private_source_snapshot.py`,
+  portábilis tesztek (az első GH körben felfedezett,
+  kimaradt `/mnt/data` abszolút tesztútvonal kijavítva);
+- `.github/workflows/fieldwork-private-snapshot-exporter.yml`,
+  **GitHub Actions #41248946641**
+  [natív bizonyíték](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41248946641):
+  **x86-64 SUCCESS + ARM64 SUCCESS**, pontos forrás
+  `sha256sum --check` és mindkét platformon
+  **13/13 read-only snapshot teszt PASS**.
+
+A felhasználó **privát** `misssska/fieldwork-app` repo
+`main` ágán [`docs/PI_READONLY_SNAPSHOT_HU.md`](https://github.com/misssska/fieldwork-app/blob/main/docs/PI_READONLY_SNAPSHOT_HU.md)
+tartalmaz egyetlen, teljes Bash blokkot, amely
+a GitHub **`e66fb283cbea4702d718cb1610a003167f94f0bd`**
+commitjából közvetlenül letölti az exportert,
+először SHA256-tal ellenőrzi, majd `admin` HOME-ban,
+`/opt/fieldwork` változtatása nélkül készít és
+ellenőriz egy 0600 permission ZIP-jelöltet.
+**Nem kell ZIP-et kézzel Pi-re másolni.**
+
+**Még blokkolt:** a Bash blokk **nem lett lefuttatva**
+a Pi-n (a jelen MCP-nek nincs jóváhagyott, hoston futó
+read-only export eszköze); **teljes app snapshot nincs**,
+secret/audit nincs, privát app source még nem importált.
+A privát `fieldwork-app` repo main ágán csak README,
+biztonsági gitignore, M5 teljes frontend CI-konfiguráció
+és a helyi exportútmutató található.
+Kiadási blokk: [privát issue #1](https://github.com/misssska/fieldwork-app/issues/1).
+Az M5 valódi frontend/PG/18085 canary tesztek
+**továbbra sem futottak**; release BLOCKED.
+Production és korábbi staging nem módosult.
