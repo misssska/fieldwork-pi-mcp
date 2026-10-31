@@ -8,11 +8,9 @@ The service is NOT installed or registered by this module.
 """
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 from pathlib import Path
-import re
 import socket
 import stat
 import struct
@@ -38,7 +36,7 @@ def require(condition: bool, code: str) -> None:
 
 
 def _dir(path: Path, *, mode: int) -> None:
-    require(type(path) is Path and path.is_absolute(),
+    require(isinstance(path, Path) and path.is_absolute(),
             "REDEEM_DIRECTORY_PATH_DENIED")
     st = path.lstat()
     require(stat.S_ISDIR(st.st_mode) and st.st_uid == os.geteuid()
