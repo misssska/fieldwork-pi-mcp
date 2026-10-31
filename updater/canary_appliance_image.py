@@ -23,6 +23,7 @@ LABELS = {
         "org.fieldwork.appliance.backend-dev-requirements-sha256",
     "production_access": "org.fieldwork.appliance.production-access",
     "scope": "org.fieldwork.appliance.scope",
+    "script_sha256": "org.fieldwork.appliance.script-sha256",
 }
 MAX_INSPECT = 256 * 1024
 ARCHES = frozenset({"arm64", "amd64"})
@@ -30,6 +31,7 @@ ARCHES = frozenset({"arm64", "amd64"})
 
 def qualify(inspect_bytes: bytes, *, expected_image_id: str,
             dependency_sha256: dict[str, str],
+            expected_script_sha256: str,
             architecture: str = "arm64") -> dict:
     """Validate a Docker image ID, architecture and pinned build labels.
 
@@ -44,6 +46,9 @@ def qualify(inspect_bytes: bytes, *, expected_image_id: str,
     q.require(type(inspect_bytes) is bytes and
               0 < len(inspect_bytes) <= MAX_INSPECT,
               "APPLIANCE_INSPECT_SIZE_DENIED")
+    q.require(type(expected_script_sha256) is str and
+              q.HEX64.fullmatch(expected_script_sha256) is not None,
+              "APPLIANCE_SCRIPT_SHA256_PIN_REQUIRED")
     q.require(type(dependency_sha256) is dict and
               set(dependency_sha256) == set(runner.DEPENDENCY_FILES),
               "APPLIANCE_DEPENDENCY_SCHEMA_DENIED")
@@ -75,6 +80,8 @@ def qualify(inspect_bytes: bytes, *, expected_image_id: str,
     for name in runner.DEPENDENCY_FILES:
         q.require(labels.get(LABELS[name]) == dependency_sha256[name],
                   "APPLIANCE_SOURCE_DEPENDENCY_DRIFT")
+    q.require(labels.get(LABELS["script_sha256"]) == expected_script_sha256,
+              "APPLIANCE_SCRIPT_SOURCE_DRIFT")
     return {
         "status": "APPLIANCE_IMAGE_PREFLIGHT_PASS_NOT_APPROVED",
         "image_id": expected_image_id,
