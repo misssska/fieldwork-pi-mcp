@@ -19,6 +19,7 @@ from updater import linux_upgrade_local_transaction as tx
 
 NOW = 1793468000
 SECRET = b"locally-owned-operator-secret-with-32bytes-minimum-123"
+OPERATOR_TOKEN = b"independent-ui-auth-credential-32bytes-plus-123"
 OLD = b"def mcp():\n    return 1\n"
 NEW = b"def mcp():\n    return 2\n"
 EXTRA = b"def linux_metrics():\n    return 3\n"
@@ -58,7 +59,7 @@ def setup_fixture(home):
         request, policy,
         {"fieldwork_mcp.py": sha(OLD), "linux_telemetry.py": None}, NOW)
     session = review.ReviewSession(
-        plan, local_secret=SECRET, handoff=ui_store)
+        plan, local_secret=SECRET, operator_token=OPERATOR_TOKEN, handoff=ui_store)
     return installed, worker, ui_store, policy, request, session
 
 
