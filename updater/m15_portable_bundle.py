@@ -25,6 +25,7 @@ FILES = (
     "updater/linux_telemetry.py",
     "updater/mcp_linux_telemetry.py",
     "updater/linux_upgrade_gate.py",
+    "updater/linux_approval_redeemer.py",
     "updater/linux_upgrade_inbox.py",
     "updater/linux_upgrade_review_ui.py",
     "updater/linux_upgrade_local_handoff.py",
