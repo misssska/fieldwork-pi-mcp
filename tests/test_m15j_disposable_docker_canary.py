@@ -92,6 +92,8 @@ class CanaryContracts(unittest.TestCase):
         def fake(argv,*,expected,timeout=30):
             if argv[2]=="rm":
                 self.fail("MUST NOT DELETE UNOWNED CONTAINER")
+            if argv[2]=="wait":
+                return "0"
             return ID
         with patch.object(c.os,"geteuid",return_value=1000),\
              patch.object(c,"_run",side_effect=fake),\
