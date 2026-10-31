@@ -32,6 +32,8 @@ jobs:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
+    env:
+      M15H_PINNED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - name: Negative contracts and byte-identical offline source reconstruction
@@ -45,7 +47,7 @@ jobs:
           from pathlib import Path
           from updater import m15_portable_bundle as b
           from updater import m15h_pinned_nozip_bootstrap as h
-          commit=os.environ["GITHUB_SHA"]
+          commit=os.environ["M15H_PINNED_COMMIT"]
           files=b.collect(Path(os.environ["GITHUB_WORKSPACE"]))
           archive=b.make_archive(files,source_commit=commit)
           sha=b.sha(archive)
@@ -66,7 +68,7 @@ jobs:
           from pathlib import Path
           from updater import m15_portable_bundle as bundle
           from updater import m15h_pinned_nozip_bootstrap as h
-          commit=os.environ["GITHUB_SHA"]
+          commit=os.environ["M15H_PINNED_COMMIT"]
           files=bundle.collect(Path(os.environ["GITHUB_WORKSPACE"]))
           expected=bundle.make_archive(files,source_commit=commit)
           original_sha=bundle.sha(expected)
@@ -82,13 +84,13 @@ jobs:
           test ! -e /opt/linux-mcp-operator
           sudo chown root:root /opt
           sudo chmod go-w /opt
-          sudo env GITHUB_SHA="$GITHUB_SHA" GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+          sudo env M15H_PINNED_COMMIT="$M15H_PINNED_COMMIT" GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
             /usr/bin/python3 -s - <<'PY'
           import os
           from pathlib import Path
           from updater import m15_portable_bundle as b
           from updater import m15h_pinned_nozip_bootstrap as h
-          commit=os.environ["GITHUB_SHA"]
+          commit=os.environ["M15H_PINNED_COMMIT"]
           files=b.collect(Path(os.environ["GITHUB_WORKSPACE"]))
           sha=b.sha(b.make_archive(files,source_commit=commit))
           reader=lambda _commit,p:files[p]
