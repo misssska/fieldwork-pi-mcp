@@ -1,0 +1,63 @@
+name: M15J3 disposable isolated PostgreSQL network and SQL sandbox (no Pi)
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/m15j_ephemeral_postgres_sandbox.py
+      - tests/test_m15j_ephemeral_postgres_sandbox.py
+      - .github/workflows/m15j3-ephemeral-postgres-sandbox.yml
+  pull_request:
+    paths:
+      - updater/m15j_ephemeral_postgres_sandbox.py
+      - tests/test_m15j_ephemeral_postgres_sandbox.py
+      - .github/workflows/m15j3-ephemeral-postgres-sandbox.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m15j3-postgres-sandbox-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  sandbox-sql:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Negative identity policy and cleanup tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q updater/m15j_ephemeral_postgres_sandbox.py
+          python3 -m unittest discover -s tests -p 'test_m15j_ephemeral_postgres_sandbox.py' -v
+      - name: Real PostgreSQL and client on internal isolated Docker network
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          docker pull postgres:16-alpine
+          POSTGRES_IMAGE=$(docker image inspect postgres:16-alpine --format '{{index .RepoDigests 0}}')
+          export POSTGRES_IMAGE
+          python3 - <<'PY'
+          import os,secrets
+          from updater import m15j_ephemeral_postgres_sandbox as s
+          outcome=s.run_isolated_database(
+              run_id=secrets.token_hex(16),
+              image=os.environ["POSTGRES_IMAGE"],
+              source_locally_trusted=True,
+              ci_disposable_host=True)
+          assert outcome["status"] == "M15J3_EPHEMERAL_POSTGRES_SQL_PASS"
+          assert outcome["sql_query_verified"] is True
+          assert outcome["network_created_and_removed"] is True
+          assert outcome["db_container_removed"] is True
+          assert outcome["test_container_removed"] is True
+          assert outcome["m12_parity_verified"] is False
+          assert outcome["m15e_activation_authorized"] is False
+          print("M15J3_NATIVE_REAL_POSTGRES_ISOLATED_SQL_AND_CLEANUP_PASS")
+          PY
+          test -z "$(docker container ls -aq --filter name=fieldwork-m15jdb-)"
+          test -z "$(docker network ls -q --filter name=fieldwork-m15jdb-)"
+          echo M15J3_ALL_DISPOSABLE_NETWORK_AND_CONTAINERS_ABSENT_PASS
