@@ -41,8 +41,8 @@ class BundleTests(unittest.TestCase):
         second = m.make_archive(dict(reversed(list(payload.items()))),
                                 source_commit=COMMIT)
         self.assertEqual(first, second)
-        self.assertEqual(first[:2], b"\\x1f\\x8b")
-        self.assertEqual(first[4:8], b"\\0\\0\\0\\0")
+        self.assertEqual(first[:2], b"\x1f\x8b")
+        self.assertEqual(first[4:8], b"\0\0\0\0")
         result = verified(first)
         self.assertEqual(result["status"], "M15_OFFLINE_BUNDLE_VERIFIED")
         self.assertEqual(result["files_checked"], len(m.FILES))
