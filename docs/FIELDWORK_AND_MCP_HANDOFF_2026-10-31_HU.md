@@ -588,3 +588,55 @@ A teljes ZIP külön, változatlan fájlnévvel és SHA256 pinekkel
 helyette a fent SHA-pinnelt `R6_CI_Compatibility_Fix`;
 `M5_FULL_APP_CI_NOT_RUN`; `M5_CANARY_NOT_DEPLOYED`;
 `M6_PARITY_BLOCKED`; `PRODUCTION_UNCHANGED`.
+
+
+## 16. FieldWork M5 R6 – valódi natív Vitest 3.2.7 tesztnyugta (2026-10-31)
+
+A 15. pontban bizonyított, `src/api`, `src/auth`,
+`src/data` és `src/components` könyvtárakat is kezelő
+`R6_CI_Compatibility_Fix` kapu **külön valós
+Vitest-végrehajtási próbán is átment**.
+
+**A helyes, tesztelt R6 ZIP továbbra is:**
+`FieldWork_M5_R6_CI_Compatibility_Fix_20261031.zip`
+SHA256 `36486e9965057bfa9811014e63dbb370c28707d7f5c5ef3da2da89a44c2f025c`,
+ChatGPT Library `/FieldWork/`.
+
+**A teljesen külön, publikus MCP repositoryba csak
+általános tesztkapu- és mesterséges fixture-kód került:**
+- `updater/m5_native_vitest_receipt_contract.py`
+- `.github/workflows/m5-native-vitest-receipt.yml`
+- Utolsó natív CI-kódcommit:
+  `8586f25ea1910afbb88ad0231f8a99afe3a2a2db`
+- [GitHub Actions run #41246505731](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41246505731):
+  **native x86-64 PASS + native ARM64 PASS**;
+  mindkét logban `Test Files 6 passed (6)`,
+  `Tests 34 passed (34)`,
+  `M5_NATIVE_VITEST_327_SIX_FILES_34_TESTS_RECEIPT_PASS`
+  és `M5_NATIVE_VITEST_NEGATIVE_RECEIPTS_DENIED_PASS`.
+- A teszt GitHub hosted runneren ténylegesen
+  `npm install vitest@3.2.7` és `vitest run` lépéseket
+  futtatott; az új parser nem ad false STOP-ot
+  a hat szintetikus fájl valódi jelentésére.
+  Negatív napló módosítás, hibás modulútvonal,
+  hamis fájlszám és valódi sortöréssel beírt
+  `1 failed` esetében fail-closed STOP volt.
+
+**A korábbi első CI-próba hibájának helyes értelmezése:**
+az első [#41246402555](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41246402555)
+runban maga a natív 34/34 Vitest PASS és a
+pozitív parser PASS is teljesült, de a
+negatív fixture véletlenül `\\n` literális escape
+karaktereket tett az összegző naplóba a tényleges
+sortörések helyett. A fixture javítása (`chr(10)`)
+után a teljes GH gate **2/2 PASS**.
+
+**MÉG NEM** a teljes FieldWork alkalmazás 100+
+React/jsdom Vitest- és frontend TypeScript/ESLint
+ellenőrzése. A publikus GH fixture
+nem tartalmazza az alkalmazás valódi forráskódját
+vagy a pontos M4 jelöltet; **teljes backend
+PostgreSQL/migráció és Pi M5 canary továbbra is
+NOT_RUN, M5 RELEASE BLOCKED**.
+A Pi production/staging Docker/DB és az `admin`
+Docker-jogosultsági kockázat változatlan.
