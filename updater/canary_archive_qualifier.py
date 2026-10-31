@@ -125,6 +125,20 @@ def parse_manifest(raw: bytes) -> tuple[str, list[dict]]:
     return base, result
 
 
+def _read_bounded(archive: zipfile.ZipFile, info: zipfile.ZipInfo, limit: int) -> bytes:
+    """Limit bytes *during* decompression; do not trust ZIP size metadata."""
+    require(info.file_size <= limit, "ARCHIVE_MEMBER_SIZE_DENIED")
+    try:
+        with archive.open(info, "r") as member:
+            data = member.read(limit + 1)
+            require(len(data) <= limit, "ARCHIVE_EXPANSION_DENIED")
+            require(member.read(1) == b"", "ARCHIVE_EXPANSION_DENIED")
+    except (OSError, RuntimeError, zipfile.BadZipFile, EOFError) as exc:
+        raise QualificationDenied("ARCHIVE_MEMBER_CORRUPTED") from exc
+    require(len(data) == info.file_size, "ARCHIVE_MEMBER_SIZE_MISMATCH")
+    return data
+
+
 def qualify_bytes(raw: bytes, expected_archive_sha256: str) -> dict:
     """Static qualification ONLY, no extraction, importing, execution or I/O."""
     require(type(expected_archive_sha256) is str and
@@ -159,10 +173,7 @@ def qualify_bytes(raw: bytes, expected_archive_sha256: str) -> dict:
             require(info.file_size <= max(1, info.compress_size) * MAX_RATIO,
                     "ARCHIVE_COMPRESSION_RATIO_DENIED")
         manifest_info = archive.getinfo("MANIFEST.json")
-        try:
-            manifest_data = archive.read(manifest_info)
-        except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
-            raise QualificationDenied("MANIFEST_CORRUPTED") from exc
+        manifest_data = _read_bounded(archive, manifest_info, MAX_MANIFEST)
         base, entries = parse_manifest(manifest_data)
         declared = {e["path"] for e in entries} | {"MANIFEST.json"}
         require(set(names) == declared, "ARCHIVE_MANIFEST_SET_MISMATCH")
@@ -172,10 +183,7 @@ def qualify_bytes(raw: bytes, expected_archive_sha256: str) -> dict:
             require(info.file_size == entry["size"], "SOURCE_SIZE_MISMATCH")
             total += info.file_size
             require(total <= MAX_TOTAL, "ARCHIVE_TOTAL_TOO_LARGE")
-            try:
-                data = archive.read(info)
-            except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
-                raise QualificationDenied("SOURCE_CORRUPTED") from exc
+            data = _read_bounded(archive, info, MAX_FILE)
             require(len(data) == entry["size"], "SOURCE_SIZE_MISMATCH")
             require(digest(data) == entry["sha256"], "SOURCE_HASH_MISMATCH")
             # All code is UTF-8 source; binary payloads / magic files are forbidden.
