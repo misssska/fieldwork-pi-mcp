@@ -202,6 +202,7 @@ def run(transfer_id: str) -> dict:
     """Locally approved operation, NOT callable from the existing MCP adapter."""
     inbox._valid_id(transfer_id)
     config = _config()  # must have explicit local approval before any command
+    _key()  # require locally provisioned evidence key before creating run state
     baseline = stage.inspect_stage(transfer_id)
     root = _root(transfer_id)
     report = {
