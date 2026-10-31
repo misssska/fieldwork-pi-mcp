@@ -58,6 +58,16 @@ class V2Tests(unittest.TestCase):
         self.source_patch.start()
         self.addCleanup(self.source_patch.stop)
 
+    def test_installer_matches_reviewed_static_overlay_contract(self):
+        from updater import canary_archive_overlay as overlay
+        self.assertEqual(v2.IMPORT_OLD, overlay.IMPORT_OLD)
+        self.assertEqual(v2.IMPORT_NEW, overlay.IMPORT_NEW)
+        self.assertEqual(v2.TOOLS_OLD, overlay.TOOLS_OLD)
+        self.assertEqual(v2.TOOLS_NEW, overlay.TOOLS_NEW)
+        self.assertEqual(v2.ANNOTATION_OLD, overlay.ANNOTATION_OLD)
+        self.assertEqual(v2.ANNOTATION_NEW, overlay.ANNOTATION_NEW)
+        self.assertEqual(v2.transformed(SOURCE), overlay.overlay(SOURCE))
+
     def test_exact_source_transform(self):
         generated = v2.transformed(SOURCE)
         self.assertEqual(generated.count(b'("fieldwork_artifact_qualify"'), 1)
