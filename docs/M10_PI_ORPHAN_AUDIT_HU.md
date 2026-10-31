@@ -94,3 +94,36 @@ helyi jóváhagyás és újraellenőrzött cleanup-bizonyíték szükséges.
 **M10 host-audit jelenleg BLOCKED. Nincs kézi SSH-utasítás
 vagy kockázatos automatikus takarítás. Nincs Pi deploy,
 új tunnel, DB-módosítás, stage restart.**
+
+## 2026-10-31 – valós Docker daemon ellenőrzés, GitHub CI (nem Pi)
+
+Az [M10 Docker integration workflow](../.github/workflows/m10-docker-orphan-smoke.yml)
+a GitHub által biztosított `ubuntu-24.04` hoston, **valódi Docker
+daemonnal**, két kizárólag CI-ben létrehozott, nem futó és
+`--network=none` állapotú szintetikus konténert alkalmazott.
+
+- [GitHub Actions #41205255857](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41205255857): **SUCCESS**.
+- `M10_REAL_DOCKER_HOST_READONLY_AUDIT_PASS`: a rögzített Docker
+  parancs kimenete helyesen feldolgozható volt.
+- `M10_CANDIDATES_PRESENT_BUT_NOT_CLEARED_PASS`: a megadott
+  32-hex futási azonosítójú konténert megtalálta, de nem adott
+  eltávolítási jogot és nem törölte a korábbi hibanyugtát.
+- `M10_ZERO_MATCH_CANNOT_CLEAR_HISTORICAL_FAILURE_PASS`:
+  ellenőrzött nulla találat sem állít elő hamis cleanup-PASS-t.
+- `M10_AUDITOR_DID_NOT_MUTATE_CONTAINERS_PASS`: mindkét
+  szintetikus konténer a *létrehozás utáni*, változatlan állapotban
+  maradt az audit végén. A CI workflow a saját tesztkonténereit
+  külön `EXIT`-trap segítségével eltakarította; **ez nem az
+  auditor művelete**.
+- Nincs GitHub/Pi kapcsolat, nincsenek hálózati címek, hitelesítő
+  adatok, production DB- vagy volume mountok a szintetikus CI-ban.
+
+**Ez a Docker-adapter valódi futásának igazolása, nem a Raspberry Pi
+hostjának ellenőrzése.** A régi `b901aaabbbcccdddeeefff0000000020`
+kísérlet `RUNTIME_CLEANUP_FAILED` nyugtája változatlan.
+
+Az M10 host-AUDIT ACCEPTANCE továbbra is **BLOCKED**.
+Az aktív Pi MCP 0.6.1 nem ad ki globális Docker inventoryt.
+Egy helyben jóváhagyott, kizárólag olvasási MCP-képesség
+kiadása és hoston való igazolása szükséges; ennek hiányában
+nincs automatikus Pi audit, restart vagy konténereltávolítás.
