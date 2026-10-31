@@ -48,6 +48,25 @@ class M13OverlayTests(unittest.TestCase):
         self.assertTrue(source.startswith("import mcp_self_diagnostics\n"))
         ast.parse(source)
 
+    def test_actual_m12_generated_tool_anchor_and_mutating_safety_list(self):
+        # Use the literal exact M12 generated registration bytes, rather than
+        # a smaller hand-written approximation.
+        from updater import mcp_self_service_overlay as m12
+        src = ("import artifact_retention_adapter\\n"
+               "import mcp_self_diagnostics\\n"
+               "TOOLS = [\\n" + m12.TOOLS_NEW + "]\\n"
+               "MUTATING_NAMES = (" + m12.ANNOTATION_NEW + ")\\n")
+        with patch.object(overlay, "EXPECTED_MAIN_SHA256",
+                          hashlib.sha256(src.encode()).hexdigest()):
+            candidate = overlay.build(src.encode())["candidate_bytes"].decode()
+        self.assertEqual(candidate.count('("fieldwork_mcp_host_metrics",'), 1)
+        self.assertEqual(candidate.count('("fieldwork_mcp_container_stats",'), 1)
+        self.assertEqual(candidate.count('("fieldwork_mcp_docker_inventory",'), 1)
+        mutating = candidate.split("MUTATING_NAMES = (")[1].split(")")[0]
+        self.assertNotIn("fieldwork_mcp_host_metrics", mutating)
+        self.assertNotIn("fieldwork_mcp_container_stats", mutating)
+        self.assertIn("fieldwork_stage_start", mutating)
+
     def test_source_anchor_missing_or_duplicate_denied(self):
         for source in (
             OLD_MAIN.replace("import mcp_self_diagnostics", "import other"),
