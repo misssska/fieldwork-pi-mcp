@@ -10,6 +10,8 @@ on:
       - updater/linux_telemetry.py
       - updater/mcp_linux_telemetry.py
       - updater/linux_upgrade_*.py
+      - updater/linux_approval_redeemer.py
+      - tests/test_m15e_inactive_bundle.py
       - updater/linux_docker_*.py
       - updater/linux_stage_*.py
       - updater/linux_sandbox_*.py
@@ -39,6 +41,7 @@ jobs:
           set -euo pipefail
           test "$(id -u)" -ne 0
           python3 -m unittest discover -s tests -p 'test_m15_*.py' -v
+          python3 -m unittest discover -s tests -p 'test_m15e_inactive_bundle.py' -v
           # The systemd reference intentionally uses -s (not -I):
           # sibling root-owned modules must remain importable.
           python3 -s updater/linux_upgrade_operator_app.py --help >/dev/null
