@@ -1,0 +1,87 @@
+name: M5 real native Vitest receipt compatibility (fixture only, not FieldWork app)
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/m5_native_vitest_receipt_contract.py
+      - .github/workflows/m5-native-vitest-receipt.yml
+  pull_request:
+    paths:
+      - updater/m5_native_vitest_receipt_contract.py
+      - .github/workflows/m5-native-vitest-receipt.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m5-native-vitest-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  real-vitest-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Native Vitest 3.2.7 in disposable public-source-free fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/m5-vitest-native-fixture"
+          mkdir -p "$ROOT"
+          cd "$ROOT"
+          printf '{"name":"m5-contract-fixture","private":true,"type":"module"}\n' > package.json
+          npm install --ignore-scripts --no-audit --no-fund vitest@3.2.7
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs'
+          import path from 'node:path'
+          const cases = [
+            ['api/client.test.ts', 5],
+            ['auth/AuthContext.test.tsx', 4],
+            ['data/FieldworkContext.integration.test.tsx', 6],
+            ['components/DocumentViewer.test.tsx', 3],
+            ['components/PhotoGalleryM5.test.tsx', 7],
+            ['components/Crud.integration.test.tsx', 9],
+          ]
+          for (const [file, count] of cases) {
+            const target = path.join('src', file)
+            fs.mkdirSync(path.dirname(target), { recursive: true })
+            fs.writeFileSync(target, `import { test, expect } from 'vitest';\nfor (let i = 0; i < ${count}; i++) test('fixed contract ' + i, () => { expect(i + 1).toBeGreaterThan(i) });\n`)
+          }
+          JS
+          CI=true NO_COLOR=1 ./node_modules/.bin/vitest run --reporter=default --maxWorkers=2 --no-file-parallelism > m5-frontend-test.log 2>&1 || {
+            tail -n 120 m5-frontend-test.log
+            exit 1
+          }
+          grep -E 'Test Files|Tests[[:space:]]' m5-frontend-test.log | tail -n 5
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 - "$ROOT/m5-frontend-test.log" <<'PY'
+          import sys
+          from pathlib import Path
+          from updater.m5_native_vitest_receipt_contract import verify_file, verify, ReceiptRejected
+          f = Path(sys.argv[1])
+          result = verify_file(f)
+          assert result["files"] == 6, result
+          assert result["tests"] == 34, result
+          assert result["release_authorized"] is False
+          assert result["real_fieldwork_tested"] is False
+          print("M5_NATIVE_VITEST_327_SIX_FILES_34_TESTS_RECEIPT_PASS")
+          raw = f.read_text()
+          for broken in (
+              raw.replace("src/api/client.test.ts", "src/api/../../../client.test.ts"),
+              raw.replace("src/components/PhotoGalleryM5.test.tsx",
+                          "src/api/PhotoGalleryM5.test.tsx"),
+              raw.replace("Test Files  6 passed (6)", "Test Files  5 passed (6)"),
+              raw + "\\n1 failed\\n",
+          ):
+              try:
+                  verify(broken)
+              except ReceiptRejected:
+                  continue
+              raise AssertionError("M5_NEGATIVE_RECEIPT_WAS_ACCEPTED")
+          print("M5_NATIVE_VITEST_NEGATIVE_RECEIPTS_DENIED_PASS")
+          PY
