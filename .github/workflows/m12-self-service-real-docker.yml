@@ -1,0 +1,55 @@
+name: M12 self-service MCP real Docker diagnostics
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/mcp_self_diagnostics.py
+      - tests/test_mcp_self_service.py
+      - tests/test_mcp_self_service_activation.py
+      - updater/mcp_self_service_overlay.py
+      - updater/mcp_self_service_activate.py
+      - .github/workflows/m12-self-service-real-docker.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m12-self-service-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  restricted-docker-inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run self-service read-only host inventory against real ephemeral Docker
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          docker info --format '{{.ServerVersion}}' >/dev/null
+          docker pull alpine:3.21 >/dev/null
+          name="fieldwork-m12-ci-${{ github.run_id }}"
+          trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+          docker create --name "$name" --network none alpine:3.21 sleep 10 >/dev/null
+          export M12_CI_NAME="$name"
+          python3 - <<'PY'
+          import json
+          import os
+          from updater import mcp_self_diagnostics as d
+          from unittest.mock import patch
+
+          expected = os.environ["M12_CI_NAME"]
+          result = d.docker_inventory({})
+          assert result["status"] == "READ_ONLY_HOST_DOCKER_INVENTORY"
+          assert result["host_modified"] is False
+          assert result["production_modified"] is False
+          assert result["container_removal_authorized"] is False
+          matches = [r for r in result["rows"] if r["name"] == expected]
+          assert len(matches) == 1, matches
+          assert matches[0]["state"] == "created"
+          serialized = json.dumps(result)
+          assert "PASSWORD" not in serialized and "DOCKER_HOST" not in serialized
+          print("M12_REAL_DOCKER_READ_ONLY_INVENTORY_PASS")
+          PY
+          test "$(docker inspect --format '{{.State.Status}}' "$name")" = created
+          echo "M12_NO_CONTAINER_STATE_MUTATION_PASS"
