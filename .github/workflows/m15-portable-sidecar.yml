@@ -17,6 +17,12 @@ on:
       - updater/linux_sandbox_*.py
       - deploy/systemd/**
       - .github/workflows/m15-portable-sidecar.yml
+  pull_request:
+    paths:
+      - updater/m15_*.py
+      - updater/linux_approval_redeemer.py
+      - tests/test_m15e_inactive_bundle.py
+      - .github/workflows/m15-portable-sidecar.yml
   workflow_dispatch:
 
 permissions:
