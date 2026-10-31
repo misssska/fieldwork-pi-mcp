@@ -65,6 +65,56 @@ jobs:
           sudo env GITHUB_ACTIONS=true \
             M15C_COMMIT="$GITHUB_SHA" M15C_REMOTE_UID="$(id -u)" \
             python3 -s tests/native_m15c_operator_acceptance.py
+          # Native systemd acceptance: ephemeral runtime unit on GitHub
+          # runner ONLY. The original reference unit is unchanged and
+          # nothing is installed to /etc/systemd or the real Pi.
+          test ! -e /run/systemd/system/m15c-operator-smoke.service
+          sudo sed -e 's/User=linux-mcp-operator/User=nobody/' \
+                   -e 's/Group=linux-mcp-operator/Group=nogroup/' \
+            deploy/systemd/linux-mcp-operator.service | \
+            sudo tee /run/systemd/system/m15c-operator-smoke.service >/dev/null
+          cleanup_m15c() {
+            sudo systemctl stop m15c-operator-smoke.service >/dev/null 2>&1 || true
+            sudo rm -f /run/systemd/system/m15c-operator-smoke.service
+            sudo systemctl daemon-reload >/dev/null
+          }
+          trap cleanup_m15c EXIT
+          sudo systemd-analyze verify /run/systemd/system/m15c-operator-smoke.service
+          sudo systemctl daemon-reload
+          sudo systemctl start m15c-operator-smoke.service
+          sudo systemctl is-active --quiet m15c-operator-smoke.service
+          test ! -r /var/lib/linux-mcp-operator/operator_token.key
+          sudo python3 -s - <<'PY'
+          from pathlib import Path
+          import base64
+          import time
+          from urllib.error import HTTPError
+          from urllib.request import Request, ProxyHandler, build_opener
+          url="http://127.0.0.1:8767/"
+          opener=build_opener(ProxyHandler({}))
+          for _ in range(40):
+              try:
+                  opener.open(url,timeout=0.5)
+              except HTTPError as exc:
+                  if exc.code==401:
+                      break
+              except OSError:
+                  time.sleep(.1)
+          else:
+              raise AssertionError("M15C_SYSTEMD_LOCAL_AUTH_NOT_READY")
+          credential=Path("/var/lib/linux-mcp-operator/operator_token.key").read_bytes()
+          token=base64.b64encode(b"operator:"+credential).decode("ascii")
+          with opener.open(Request(url,headers={"Authorization":"Basic "+token}),timeout=2) as res:
+              data=res.read()
+              assert res.status==200 and b"fieldwork_mcp.py" in data
+              assert credential not in data
+          print("M15C_HARDENED_SYSTEMD_LOOPBACK_401_200_PASS")
+          PY
+          sudo systemctl stop m15c-operator-smoke.service
+          test "$(systemctl is-active m15c-operator-smoke.service || true)" = inactive
+          echo "M15C_HARDENED_SYSTEMD_START_STOP_PASS"
+          cleanup_m15c
+          trap - EXIT
           # The exact inactive-root rollback must still be possible.
           sudo env M15C_ARCHIVE="$RUNNER_TEMP/m15c-candidate.tar.gz" \
              M15C_COMMIT="$GITHUB_SHA" python3 -s - <<'PY'
