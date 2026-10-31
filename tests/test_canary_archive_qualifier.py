@@ -26,7 +26,7 @@ GOOD = {
 def makezip(files=None, *, manifest=None, extra=None, symlink=None,
             compression=zipfile.ZIP_DEFLATED):
     files = GOOD if files is None else files
-    entries = [{"path": p, "size": len(raw), "sha256": q.digest(raw)}
+    entries = [{"path": p, "size": len(raw), "sha256": q.digest(raw), "previous_sha256": None}
                for p, raw in sorted(files.items())]
     declaration = ({"schema": 1, "kind": q.KIND, "base_commit": BASE,
                     "files": entries} if manifest is None else manifest)
@@ -95,7 +95,7 @@ class StaticArchiveTests(unittest.TestCase):
 
     def test_manifest_hash_mismatch_denied(self):
         files = GOOD
-        entries = [{"path": path, "size": len(blob), "sha256": "0" * 64}
+        entries = [{"path": path, "size": len(blob), "sha256": "0" * 64, "previous_sha256": None}
                    for path, blob in sorted(files.items())]
         bad = {"schema": 1, "kind": q.KIND,
                "base_commit": BASE, "files": entries}
@@ -105,7 +105,7 @@ class StaticArchiveTests(unittest.TestCase):
 
     def test_manifest_is_pinned_to_base_commit(self):
         m = {"schema": 1, "kind": q.KIND, "base_commit": "main",
-             "files": [{"path": p, "size": len(blob), "sha256": q.digest(blob)}
+             "files": [{"path": p, "size": len(blob), "sha256": q.digest(blob), "previous_sha256": None}
                        for p, blob in sorted(GOOD.items())]}
         with self.assertRaisesRegex(q.QualificationDenied,
                                     "BASE_COMMIT_INVALID"):
@@ -136,7 +136,7 @@ class StaticArchiveTests(unittest.TestCase):
             self.check(makezip(extra=(".github/workflows/run.yml", b"bad")))
 
     def test_unsorted_manifest_and_duplicate_files_denied(self):
-        entries = [{"path": p, "size": len(blob), "sha256": q.digest(blob)}
+        entries = [{"path": p, "size": len(blob), "sha256": q.digest(blob), "previous_sha256": None}
                    for p, blob in reversed(sorted(GOOD.items()))]
         m = {"schema": 1, "kind": q.KIND, "base_commit": BASE, "files": entries}
         with self.assertRaisesRegex(q.QualificationDenied,
