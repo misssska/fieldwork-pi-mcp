@@ -98,6 +98,45 @@ class TestRunnerTests(unittest.TestCase):
                           "--network=host", "--volume=/", "sh -c", "bash -c"):
             self.assertNotIn(forbidden, as_string)
 
+    def test_subprocess_execution_denies_altered_docker_argv(self):
+        allowed = runner._command(TID, "frontend-lint", IMAGE)
+        for mutated in (
+            allowed + ["--privileged"],
+            allowed[:3] + ["--network=host"] + allowed[3:],
+            [*allowed[:-2], "ubuntu:latest", "frontend-lint"],
+            [*allowed[:-1], "backend-pytest-postgres"],
+        ):
+            with self.subTest(mutated=mutated), patch.object(
+                    runner.subprocess, "run") as proc:
+                with self.assertRaises(q.QualificationDenied):
+                    runner._run_docker(mutated, runner.TIME_LIMIT["frontend-lint"])
+                proc.assert_not_called()
+
+    def test_timeout_removes_only_own_container(self):
+        from subprocess import CompletedProcess, TimeoutExpired
+        argv = runner._command(TID, "frontend-lint", IMAGE)
+        with patch.object(runner.subprocess, "run", side_effect=[
+            TimeoutExpired(argv, 180),
+            CompletedProcess(["docker", "rm", "-f"], 0)
+        ]) as proc:
+            passed, outcome = runner._run_docker(argv, 180)
+        self.assertFalse(passed)
+        self.assertEqual(outcome, "TIMEOUT_CONTAINER_REMOVED")
+        self.assertEqual(proc.call_count, 2)
+        self.assertEqual(proc.call_args.args[0], [
+            "docker", "rm", "-f", "fw-canary-" + TID + "-1"])
+
+    def test_timeout_cleanup_failure_does_not_report_pass(self):
+        from subprocess import CompletedProcess, TimeoutExpired
+        argv = runner._command(TID, "frontend-lint", IMAGE)
+        with patch.object(runner.subprocess, "run", side_effect=[
+            TimeoutExpired(argv, 180),
+            CompletedProcess(["docker", "rm", "-f"], 1)
+        ]):
+            passed, outcome = runner._run_docker(argv, 180)
+        self.assertFalse(passed)
+        self.assertEqual(outcome, "TIMEOUT_CLEANUP_NOT_CONFIRMED")
+
     def test_arbitrary_suite_denied(self):
         for suite in ("shell", "docker compose up", "../etc/shadow", "backend-migrate-prod"):
             with self.assertRaisesRegex(q.QualificationDenied,
