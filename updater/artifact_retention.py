@@ -83,6 +83,7 @@ def retire(transfer_id: str, expected_sha256: str, approval: str) -> dict:
         if held.exists() or held.is_symlink():
             _clean(held, base)
         elif root.exists() or root.is_symlink():
+            root = inbox._transfer(transfer_id)  # re-validate owner, mode and symlink
             fd = inbox._lock(root)
             try:
                 record = inbox._record(root)
