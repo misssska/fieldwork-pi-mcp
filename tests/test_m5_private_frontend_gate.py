@@ -35,7 +35,7 @@ class RealGitPrivateSourceGate(unittest.TestCase):
         git("config", "user.name", "M5 Local Fixture")
         files = {
             "frontend/package.json": json.dumps({
-                "private": True, "scripts": g.SCRIPTS,
+                "private": True, "scripts": {**g.SCRIPTS, "dev": "vite", "test:e2e": "playwright test"},
                 "devDependencies": {"vitest": "3.2.7"}}),
             "frontend/package-lock.json": json.dumps({
                 "lockfileVersion": 3,
