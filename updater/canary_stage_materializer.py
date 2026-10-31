@@ -18,6 +18,7 @@ from . import artifact_inbox as inbox
 from . import canary_git_base as gitbase
 from . import canary_archive_qualifier as q
 from . import canary_change_planner as planner
+from . import canary_stage_inspect as inspect
 
 STAGE_NAME = "canary-stage-workspaces"
 MAX_TREE_ENTRIES = 2500
@@ -169,6 +170,12 @@ def materialize_transfer(transfer_id: str) -> dict:
         final_head = gitbase._git(repo, "rev-parse", "--verify",
                                   "HEAD^{commit}", max_output=128).decode().strip()
         q.require(final_head == actual_head, "BASE_CHANGED_DURING_MATERIALIZE")
+        signature = inspect.snapshot_signature(snapshot)
+        q.require(signature["snapshot_file_count"] == len(files) +
+                  sum(name not in base_paths for name in prepared.files),
+                  "SNAPSHOT_MEMBER_COUNT_DRIFT")
+        q.require(signature["snapshot_total_bytes"] == total,
+                  "SNAPSHOT_TOTAL_BYTES_DRIFT")
         receipt = {
             "schema": 1, "status": "STAGE_MATERIALIZED_NOT_TESTED",
             "transfer_id": transfer_id, "archive_sha256": archive_hash,
@@ -178,6 +185,7 @@ def materialize_transfer(transfer_id: str) -> dict:
             "snapshot_file_count": len(files) +
                 sum(name not in base_paths for name in prepared.files),
             "snapshot_total_bytes": total,
+            "snapshot_tree_sha256": signature["snapshot_tree_sha256"],
             "tests_run": False, "canary_started": False,
             "production_modified": False,
         }
