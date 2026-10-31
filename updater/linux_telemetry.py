@@ -10,12 +10,11 @@ explicitly reporting the measurement scope.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
 import math
 from pathlib import Path
 import re
 
-MAX_PROC_BYTES = 64 * 1024
+MAX_PROC_BYTES = 256 * 1024
 REQUIRED_MEM_FIELDS = ("MemTotal", "MemAvailable")
 MEM_ITEM = re.compile(r"([A-Za-z][A-Za-z_()]*):\s*([0-9]+)\s*kB\s*\Z")
 CPU_COUNTERS = 8  # user, nice, system, idle, iowait, irq, softirq, steal
@@ -139,7 +138,7 @@ def parse_proc_snapshot(meminfo: str, stat: str, loadavg: str) -> dict:
 def _read_proc(name: str, *, root: Path = PROC) -> str:
     """Internal fixed names only. Tests may inject an isolated fake proc."""
     require(name in ("meminfo", "stat", "loadavg"), "PROC_FILE_NOT_ALLOWED")
-    require(type(root) is Path and root.is_dir() and not root.is_symlink(),
+    require(isinstance(root, Path) and root.is_dir() and not root.is_symlink(),
             "PROC_ROOT_INVALID")
     path = root / name
     require(path.is_file() and not path.is_symlink(),
