@@ -257,3 +257,34 @@ nélkül nem szabad megkérdőjelezhetetlenül elavultnak tekinteni.
 A Raspberry Pi-n most nincs új teszt, új MCP-telepítés,
 Docker leállítás/törlés, adatbázis-/tunnel- vagy production
 módosítás. A PR továbbra is **draft**.
+
+## 2026-10-31 – TELEPÍTETT MCP FORRÁSJELÖLÉS, tényleges Pi AST-leltár
+
+A tulajdonos `admin@fieldwork` alatt kizárólag olvasási Python AST
+forrásleltárt hajtott végre a
+`~/.local/share/fieldwork-pi-mcp/v0.6.1/*.py` fájlokra. A következő
+**helyi fájlhash-ek** közvetlenül a visszaküldött parancskimenetből
+származnak; ezek nem a fejlesztői GitHub repo ugyanilyen nevű fájljainak
+hash-ei:
+
+| Helyi modul | SHA256 | Megfigyelt belépő / sor |
+| --- | --- | --- |
+| `fieldwork_mcp.py` | `e0e7cfb7b70c7f79845337b84bb47025beaad6d429377b64d1972db68c3fbc1a` | `sandbox_command_run` 225–226, `sandbox_command_status` 228–229 |
+| `sandbox_command.py` | `5255968dac5c0bb8ac3a94eb72f3131ea2081b683974d97db6bb9ddc3d432615` | `_docker_args` 47–58, `command_status` 61–72, **`run_command` 75–169** |
+| `runtime_runner.py` | `ae0387aed34768a7260cf01e6c1ff9d4620c506c37e7ae2a74706f661ee2db6c` | `runtime_status` 246–271, `test_sandbox` 274–370 |
+| `stage_manager.py` | `0a04c40a00ccc940e50d590cf6b01f75c7a803dd228cb24b916fad44e046a7e6` | Nem a régi sandbox `run_command()` forrása |
+
+**Következtetés:** az új, csak olvasási source-review-t a
+`sandbox_command.py` pontosan rögzített **`run_command`** és
+`_docker_args` implementációjára kell korlátozni. A
+`runtime_runner.test_sandbox` egy másik útvonal, a
+`fieldwork_mcp.py` belépők vékony delegáló függvények. Mivel
+a tényleges `sandbox_command.py` kódtörzse még nem áll rendelkezésre,
+a cleanup hibájának konkrét végrehajtási oka **NEM BIZONYÍTOTT**;
+nem írható javítás a telepített kódból való találgatással.
+
+Következő kapu: PIN-ellenőrzött, **csak olvasási, szövegliterálokat
+kitakaró** AST-vizsgálat a 75–169. sor control flow-járól,
+subprocess timeout és kivétel-/finally-ágak sorrendjéről. Ebből
+levezethető minimális javítás, rollback terv és negatív teszt.
+**Nem telepítendő** változás a bizonyított gyökérok előtt.
