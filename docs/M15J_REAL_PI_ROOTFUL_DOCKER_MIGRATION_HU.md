@@ -175,3 +175,113 @@ A további M15-J2 fejlesztés sorrendje:
 `M15J_FULL_STAGE_SANDBOX_PARITY_PENDING`;
 `M15E_ACTIVATION_BLOCKED`;
 `PI_PRODUCTION_UNCHANGED`.
+
+
+## 7. M15-J3/J4 – valódi PostgreSQL-sandbox és háromszolgáltatásos Compose-futtatás (2026-10-31)
+
+Mindkét fejlesztés **kizárólag ideiglenes GitHub Actions Ubuntu Linux
+ARM64/x86-64 teszthoston** futott. Az élő Raspberry Pi `/opt/fieldwork`,
+Docker, tunnel, `/opt/linux-mcp-operator`, UID/csoport- és systemd-
+beállításait semmilyen tesztművelet nem érintette.
+
+### M15-J3 – izolált, ideiglenes PostgreSQL adatbázisos sandbox
+
+`updater/m15j_ephemeral_postgres_sandbox.py`:
+- GitHub runneren előzetesen letöltött, pontos OCI
+  SHA256-digesthez kötött PostgreSQL image; nincs tetszőleges image/command.
+- Egyedi, 128 bites helyi `run_id`-hez kötött név és label.
+- `docker network create --internal` – nem publikál portot.
+- A PostgreSQL felhasználó UID/GID 70, read-only rootfs,
+  `cap-drop ALL`, `no-new-privileges`, korlátozott CPU/RAM/PID,
+  ideiglenes **tmpfs** adatkönyvtár, nincs volume vagy host bind mount.
+- A csak tesztcélú `POSTGRES_HOST_AUTH_METHOD=trust` kizárólag a
+  belső, ideiglenes CI-hálózaton szerepel. **Nem alkalmas production DB-re**.
+- Valós `pg_isready` és **külön klienskonténerben** végrehajtott
+  `SELECT 1` és `exit 0` ellenőrzés.
+- Teszt- és DB-konténer törlése előtt 64-karakteres container ID,
+  pontos név és két local label ellenőrzése; hálózat törlése
+  előtt `Internal=true`, ID/label és az idegen endpointok
+  hiánya kötelező. Hiba után is megkísérli a szűkített rollbacket,
+  de bizonytalan tulajdon vagy Docker timeout esetén
+  **nem töröl idegen objektumot** és nem állít PASS-t.
+- Nincs host Docker socket mount a tesztkonténerben; **maga a helper
+  viszont továbbra is root-equivalent Docker jogú CI-felhasználó**.
+
+`tests/test_m15j_ephemeral_postgres_sandbox.py` **12/12 PASS**
+x86-64-en és ARM64-en; az internal hálózat, invalid run/image,
+módosított ID/label, idegen endpoint, cleanup failure, indítási
+hiba és root/untrusted caller mind tesztelt.
+
+[Native M15-J3 #41240056912](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41240056912):
+**mindkét architektúrán PASS** a valódi PostgreSQL, SQL,
+DB/test/network cleanup és az üres maradványleltár.
+
+### M15-J4 – külön háromszolgáltatásos Compose-teszt
+
+`updater/m15j_disposable_compose_stage.py`:
+- A Compose-fájlt **helyileg, rögzített Python-konstansokból**
+  generálja; nincs bejövő YAML, Compose-paraméter,
+  Dockerfile vagy tetszőleges host path.
+- A két építendő teszt-image `nginx` **pontosan rögzített OCI digestből**
+  épül; a harmadik, `db` PostgreSQL image szintén pontos digest.
+- `db` (valódi PostgreSQL, tmpfs), `api` (helyi
+  rögzített HTTP `/health` fixture) és `nginx`
+  (valódi reverse proxy az API felé).
+- Build, `up --detach --wait --wait-timeout 90`,
+  a belső reverse proxyhoz intézett HTTP `ok` próba,
+  valódi SQL `SELECT 1`, majd `down`.
+- Nem publikál host TCP-portot, nem csatol host
+  könyvtárat runtime, nincs production/named volume,
+  `privileged`, Docker socket, host network vagy
+  távoli felhasználói parancs.
+- Takarítás előtt a Compose project labelhez
+  tartozó konténernevek és szolgáltatáscímkék
+  kizárólag `api/db/nginx` lehetnek; eltérésnél
+  **STOP** és nincs ismeretlen erőforrás törlés.
+
+Valós hibakeresés: az első natív build a
+`HOME=/nonexistent` miatt hibázott
+(`mkdir /nonexistent: permission denied`).
+A CI-only Docker Compose számára meglévő,
+írható GitHub runner HOME-ot használunk;
+az azonosított hiba javítása után mindkét
+architektúrán sikeres az image build és a teljes futtatás.
+
+`tests/test_m15j_disposable_compose_stage.py`:
+**10/10 PASS** ARM64 + x86-64.
+[Native M15-J4 #41240056933](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41240056933):
+**PASS mindkettő**, valós háromszolgáltatásos
+Compose build/up, HTTP proxy + SQL, down,
+és maradék konténerek/hálózatok hiánya.
+
+[Teljes biztonsági regresszió #41240057045](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41240057045):
+**901 updater + 12 bootstrap = 913/913 PASS**.
+
+### Ami ezzel MÉG NEM teljesült
+
+1. A Compose build csak változatlan, CI-only tesztforrást fordít,
+   nem a valós FieldWork release-t, migrációkat,
+   frontend-backend paritást vagy a 36 MCP-műveletet.
+2. Az adatbázisos sandbox csak rögzített SQL-próba, nem
+   `runtime_runner.py` és `sandbox_command.py`
+   teljes (korlátozott, de dinamikus) teszt- és
+   takarítási képessége.
+3. Nincs létrehozva Pi-n külön `fieldwork-mcp` vagy
+   Docker-helper UID, systemd socket, üzemképes
+   AF_UNIX végrehajtási szerződés, auditált `SO_PEERCRED`,
+   valódi helyi approval HMAC integráció, shadow 36/36,
+   újraindításos cutover és visszaállítás.
+4. Az M15-E változatlanul csak **inaktív, root-owned
+   forrásfájl**, és nem javasolt a bekapcsolása.
+
+**Release gate:** `M15J3_NATIVE_POSTGRES_SQL_PASS`,
+`M15J4_NATIVE_COMPOSE_FIXTURE_PASS`,
+`M15J_LEGACY_STAGE_SANDBOX_PARITY_PENDING`,
+`M15E_NOT_AUTHORIZED`,
+`REAL_PI_UNTOUCHED`.
+
+A következő tényleges fejlesztési feladat a szűkített,
+külön UID/AF_UNIX Docker-helper integrációja a
+**valós, változatlan FieldWork-funkciókba**, nem a
+teszt-fixture újabb változata. A Docker-jog megvonását
+csak bizonyított rollback és paritás után lehet megkezdeni.
