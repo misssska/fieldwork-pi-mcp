@@ -191,3 +191,80 @@ nem a referencia-paritásra vagy a működő stagingre.
 4. A `/opt/fieldwork` produkciós source, DB, Docker változatlan, külön app GitHub repository/forrásmentés továbbra sem igazolt.
 
 **M5 és M6 deployment=BLOCKED; M15-E/operator cutover=BLOCKED; FieldWork production healthy az utolsó valódi read-only lekérdezésnél.**
+
+
+## 10. FieldWork alkalmazás – M5 R2 fotókomment idempotencia/nyugta javítás (2026-10-31)
+
+**Mérnöki eredmény:** az eredeti M5-ös `PhotoGallery.tsx`
+a POST-válasz után vakon `setTotal(previous => previous + 1)` műveletet
+használt, annak ellenére, hogy a backend ugyanazzal a
+UUID v4 kommentazonosítóval elküldött hálózati újrapróbálkozást
+egy korábbi mentés visszaadásával teljesíthette.
+Így a frontend és a tartósan tárolt kommentek száma
+eltérhetett; a korábbi M5 teszt az azonosság/összesítés
+bizonyítására nem volt elég.
+
+**Elkészült az M5 R2 külön, áttekinthető, de nem kiadott javítócsomag:**
+- `FieldWork_M5_R2_Idempotency_Receipt_Gate_20261031.zip`.
+- SHA256: `567df3d472de743749cd0dfbaa5a49fa52b774ea70fcb2b6da03141231f0240f`.
+- A felhasználó Library `/FieldWork/FieldWork_M5_R2_Idempotency_Receipt_Gate_20261031.zip`
+  helyén **sikeresen feltöltve**, a feltöltési nyugta visszaigazolta.
+- 11 fájl SHA256-ját tartalmazó belső manifest; `verify.py`
+  `M5_PACKAGE_INTEGRITY_PASS 11 files` és ZIP CRC ellenőrzés PASS.
+- A módosított M5 router `POST /photos/{photo_id}/comments`
+  `created: bool` (új vs azonosítóval újraküldött korábbi)
+  és szerveroldali SQL COUNT alapján `total: int` nyugtát ad,
+  **idempotens retryra nem számol új kommentet**.
+- A módosított `PhotoGallery.tsx` csak az aktuális
+  `pending.current.id`-hez tartozó, formailag érvényes
+  választ fogadja el; `total` megjelenítése a DB-beli
+  darabszámot követi, nem `previous + 1`.
+  A korábbi kliensbizonytalanságoknál továbbra is ugyanazt
+  az idempotens requestet küldheti újra.
+- Módosított `test_photo_comments_m5.py` és
+  `PhotoGalleryM5.test.tsx`, valamint új, független
+  `isolated_backend_contract_smoke.py` tesztparancs.
+
+**Tényleges ellenőrzések:**
+- Valódi FastAPI `TestClient`, SQLAlchemy és csak memóriabeli
+  SQLite, az **új valódi M5 routerkódot** minimális helyettesítő
+  modellekkel és szűkített, mock auth/permission függvényekkel
+  végigtesztelve: `15/15 PASS` (első mentés/COUNT,
+  idempotens második POST/COUNT, eltérő body konfliktus,
+  második komment, listás összesítés, viewer deny,
+  anonymous/cross-project deny, üres/hibás UUID és törölt fotó).
+- Python AST fordítás: PASS, a bundle 11 fájlos SHA
+  manifest-ellenőrzése: PASS.
+- Valódi TypeScript 5.8.3 `transpileModule` parser:
+  `PhotoGallery.tsx` és `PhotoGalleryM5.test.tsx`: 0 szintaxishiba.
+- **NINCS** teljes alkalmazás-szintű Python/migrációs regresszió,
+  npm `tsc` a FieldWork függőségeivel, Vitest,
+  Playwright vagy Pi M5 stage E2E: ezek **BLOCKED**,
+  nem PASS. A jelenlegi munkakörnyezetből
+  `npm view` hálózati hiba `EAI_AGAIN`,
+  nincs rendelkezésre álló telepített FieldWork
+  frontend node_modules; a Pi MCP jelenlegi
+  frontend parancsfuttatása `PHOTO_SUITE_BACKEND_ONLY`.
+
+**Kritikus fennmaradó hibák / szabályok:**
+- A korábbi `DocumentViewer.test.tsx` 99/100 frontend kapuhiba
+  továbbra is **nyitott, root cause NOT_VERIFIED**.
+  A M5 R2 ezt **nem** állítja javítottnak.
+- Az R08 naptár meglévő/új feladat naphoz rendelése
+  továbbra is hiányzik; M6 referencia-paritás nem teljes.
+- A `launch_canary.sh` továbbra is csak a korábbi
+  pontos M4 alapforrást, teljes tesztkaput és
+  külön `fieldwork-parity-m5` stage projektet enged.
+  Az új csomag kizárólag izolált candidate, **nem futott a Pi-n**.
+- `/opt/fieldwork`, éles DB, Docker production és staging
+  konténerek, tunnel és MCP felhasználók **nem módosultak
+  az M5 R2 csomag készítése során**.
+- A külön, privát teljes app GitHub repository/forrásbackup
+  még nem igazolt; ez a dokumentum csak MCP-repós checkpoint.
+
+**Állapot:** `M5R2_LOCAL_FASTAPI_SQLITE_15_PASS`;
+`M5R2_BUNDLE_SHA_MANIFEST_PASS`;
+`M5_FULL_FRONTEND_BACKEND_GATE_NOT_RUN`;
+`DOCUMENT_VIEWER_FAIL_PENDING`;
+`M5_STAGING_CUTOVER_BLOCKED`;
+`M6_PARITY_BLOCKED`.
