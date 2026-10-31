@@ -93,13 +93,18 @@ def _config() -> dict:
 def _root(tid: str) -> Path:
     inbox._valid_id(tid)
     base = Path.home()
-    for part in TESTS_REL.parts:
+    for index, part in enumerate(TESTS_REL.parts):
         base = base / part
         q.require(not base.is_symlink(),
                   "TEST_RECEIPT_PARENT_SYMLINK")
         if not base.exists():
             base.mkdir(mode=0o700)
-        _owner_private(base, directory=True)
+        st = base.stat()
+        q.require(st.st_uid == os.geteuid() and
+                  not (st.st_mode & 0o022),
+                  "TEST_RECEIPT_PARENT_MODE_DENIED")
+        if index == len(TESTS_REL.parts) - 1:
+            _owner_private(base, directory=True)
     dest = base / tid
     q.require(not dest.exists() and not dest.is_symlink(),
               "TEST_ALREADY_ATTEMPTED")
