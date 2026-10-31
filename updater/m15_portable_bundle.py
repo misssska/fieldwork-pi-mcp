@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import gzip
 import json
 from pathlib import Path, PurePosixPath
 import os
@@ -130,11 +131,15 @@ def make_archive(files: dict[str, bytes], *, source_commit: str) -> bytes:
     })
     payload = {**files, MANIFEST: manifest}
     output = io.BytesIO()
-    with tarfile.open(fileobj=output, mode="w:gz",
-                      format=tarfile.PAX_FORMAT, compresslevel=9) as tar:
-        for name in sorted(payload):
-            info, b = _member(name, payload[name])
-            tar.addfile(info, io.BytesIO(b))
+    # gzip's default header timestamp breaks reproducibility even when
+    # every tar entry mtime is fixed. Pin both layer timestamps to zero.
+    with gzip.GzipFile(fileobj=output, mode="wb", filename="",
+                       mtime=0, compresslevel=9) as compressed:
+        with tarfile.open(fileobj=compressed, mode="w",
+                          format=tarfile.PAX_FORMAT) as tar:
+            for name in sorted(payload):
+                info, b = _member(name, payload[name])
+                tar.addfile(info, io.BytesIO(b))
     result = output.getvalue()
     require(len(result) <= MAX_ARCHIVE, "M15_ARCHIVE_TOO_LARGE")
     return result
