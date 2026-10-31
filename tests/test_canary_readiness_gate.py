@@ -184,9 +184,16 @@ class ReadinessGateTests(unittest.TestCase):
         self.assertNotIn("sensitive-private-path", json.dumps(report))
         self.assertEqual(report["blocker_class"], "OSError")
 
+    def test_transfer_retired_while_checking_tests_is_blocked(self):
+        self.qualify.side_effect = [self.transfer, ValueError("retired")]
+        self.assertBlocked(sut.TESTS, [sut.TRANSFER, sut.BASE, sut.STAGE])
+        self.assertEqual(self.qualify.call_count, 2)
+
     def test_read_only_functions_only(self):
         sut.inspect(TID)
-        self.qualify.assert_called_once_with(TID)
+        self.assertEqual(self.qualify.call_count, 2)
+        self.assertEqual([x.args for x in self.qualify.call_args_list],
+                         [(TID,), (TID,)])
         self.preflight.assert_called_once_with(TID)
         self.tests.assert_called_once_with(TID)
         self.forbidden.assert_not_called()
