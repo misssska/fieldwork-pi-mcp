@@ -13,11 +13,14 @@ from pathlib import Path
 import pwd
 import secrets
 import subprocess
+import sys
 import time
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import ProxyHandler, Request, build_opener
 
+# Script-mode imports start in tests/, not the repository root.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from updater import linux_upgrade_gate as gate
 
 ROOT = Path("/var/lib/linux-mcp-operator")
