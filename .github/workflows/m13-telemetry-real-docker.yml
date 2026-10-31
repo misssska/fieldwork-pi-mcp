@@ -1,0 +1,61 @@
+name: M13 portable host and Docker telemetry read-only smoke
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/linux_telemetry.py
+      - updater/mcp_linux_telemetry.py
+      - updater/mcp_linux_telemetry_overlay.py
+      - tests/test_mcp_linux_telemetry.py
+      - .github/workflows/m13-telemetry-real-docker.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: m13-linux-telemetry-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  linux-amd64-real-docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise read-only /proc and Docker stats with synthetic fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          docker info --format '{{.ServerVersion}}' >/dev/null
+          docker pull alpine:3.21 >/dev/null
+          export M13_DOCKER_NAME="fieldwork-m13-ci-${{ github.run_id }}"
+          trap 'docker container rm -f "$M13_DOCKER_NAME" >/dev/null 2>&1 || true' EXIT
+          docker container create --network none --name "$M13_DOCKER_NAME" alpine:3.21 sleep 70 >/dev/null
+          docker container start "$M13_DOCKER_NAME" >/dev/null
+          python3 - <<'PY'
+          import os
+          import time
+          from updater import mcp_linux_telemetry
+
+          host = mcp_linux_telemetry.host_metrics({})
+          assert host["status"] == "READ_ONLY_LINUX_HOST_METRICS"
+          assert 0 <= host["cpu_busy_pct"] <= 100
+          assert host["memory"]["total_kib"] > 0
+          assert host["memory"]["available_kib"] <= host["memory"]["total_kib"]
+          assert host["cpu_interval_seconds"] >= 0.1
+          assert host["write_performed"] is False
+          print("M13_REAL_LINUX_HOST_PROC_TELEMETRY_PASS")
+
+          result = mcp_linux_telemetry.docker_stats({})
+          assert result["status"] == "READ_ONLY_DOCKER_RESOURCE_STATS"
+          assert result["write_performed"] is False
+          assert result["production_modified"] is False
+          matches = [r for r in result["rows"]
+                     if r["name"] == os.environ["M13_DOCKER_NAME"]]
+          assert len(matches) == 1, matches
+          assert 0 <= matches[0]["memory_used_bytes"] <= matches[0]["memory_limit_bytes"]
+          assert matches[0]["cpu_percent_of_one_core"] >= 0
+          print("M13_REAL_DOCKER_STATS_READONLY_PASS")
+          PY
+          test "$(docker container inspect --format '{{.State.Status}}' "$M13_DOCKER_NAME")" = running
+          echo "M13_DOCKER_TEST_CONTAINER_LEFT_RUNNING_UNTIL_CI_CLEANUP_PASS"
