@@ -9,6 +9,12 @@ on:
       - tests/test_m15_*.py
       - deploy/systemd/**
       - .github/workflows/m15b-inactive-bootstrap.yml
+  pull_request:
+    paths:
+      - updater/m15_*.py
+      - updater/linux_approval_redeemer.py
+      - tests/test_m15e_inactive_bundle.py
+      - .github/workflows/m15b-inactive-bootstrap.yml
   workflow_dispatch:
 
 permissions:
