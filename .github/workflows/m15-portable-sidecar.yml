@@ -39,6 +39,10 @@ jobs:
           set -euo pipefail
           test "$(id -u)" -ne 0
           python3 -m unittest discover -s tests -p 'test_m15_*.py' -v
+          # The systemd reference intentionally uses -s (not -I):
+          # sibling root-owned modules must remain importable.
+          python3 -s updater/linux_upgrade_operator_app.py --help >/dev/null
+          echo "M15_OPERATOR_ENTRYPOINT_IMPORT_PASS"
           mkdir -p dist
           python3 -m updater.m15_portable_bundle \
             --source-root "$GITHUB_WORKSPACE" \
