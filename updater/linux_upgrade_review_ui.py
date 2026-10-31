@@ -198,7 +198,11 @@ def _html(session: ReviewSession) -> bytes:
 
 
 class _LoopbackServer(ThreadingHTTPServer):
-    allow_reuse_address = False
+    # SO_REUSEADDR permits a single localhost listener to restart even when
+    # prior HTTP connections remain in TCP TIME_WAIT. SO_REUSEPORT stays off:
+    # two active local servers must not share the approval port.
+    allow_reuse_address = True
+    allow_reuse_port = False
     daemon_threads = True
 
 
