@@ -14,6 +14,7 @@ from updater import canary_archive_builder as builder
 from updater import canary_archive_qualifier as q
 from updater import canary_git_base as gitbase
 from updater import canary_stage_materializer as stage
+from updater import canary_stage_inspect as stage_inspect
 
 TID = "1" * 32
 EXISTING = "frontend/src/components/TaskDetail.tsx"
@@ -83,6 +84,38 @@ class MaterializerTests(unittest.TestCase):
         self.assertFalse(receipt["tests_run"])
         self.assertFalse(receipt["canary_started"])
         self.assertFalse(receipt["production_modified"])
+
+    def test_complete_stage_read_only_integrity_check(self):
+        self.add_transfer()
+        receipt = stage.materialize_transfer(TID)
+        verified = stage_inspect.inspect_stage(TID)
+        self.assertEqual(verified["status"], "STAGE_VERIFIED_NOT_TESTED")
+        self.assertEqual(verified["snapshot_tree_sha256"],
+                         receipt["snapshot_tree_sha256"])
+        self.assertEqual(verified["snapshot_file_count"], 3)
+
+    def test_tampered_stage_denied(self):
+        self.add_transfer()
+        stage.materialize_transfer(TID)
+        (self.output_root / TID / EXISTING).write_bytes(b"tampered source")
+        with self.assertRaisesRegex(q.QualificationDenied, "STAGE_CONTENT_DRIFT"):
+            stage_inspect.inspect_stage(TID)
+
+    def test_interrupted_stage_without_receipt_denied(self):
+        self.add_transfer()
+        stage.materialize_transfer(TID)
+        (self.output_root / TID / "STAGE_RECEIPT.json").unlink()
+        with self.assertRaisesRegex(q.QualificationDenied, "STAGE_FILE_UNSAFE"):
+            stage_inspect.inspect_stage(TID)
+
+    def test_unsafe_stage_symlink_denied(self):
+        self.add_transfer()
+        stage.materialize_transfer(TID)
+        target = self.output_root / TID / ADDED
+        target.unlink()
+        target.symlink_to(self.base / EXISTING)
+        with self.assertRaisesRegex(q.QualificationDenied, "STAGE_SOURCE_UNSAFE"):
+            stage_inspect.inspect_stage(TID)
 
     def test_replay_fails_without_writing(self):
         self.add_transfer()
