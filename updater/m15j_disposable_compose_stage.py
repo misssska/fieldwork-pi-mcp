@@ -151,8 +151,15 @@ def _docker(argv: tuple[str, ...], *, timeout: int = 120) -> str:
                            timeout=timeout, check=False, shell=False)
     except (OSError, subprocess.SubprocessError):
         raise StageFixtureDenied("M15J4_DOCKER_TRANSPORT_UNVERIFIED") from None
-    require(r.returncode == 0 and len(r.stdout) <= 8192,
-            "M15J4_DOCKER_COMMAND_FAILED_OR_OUTPUT_OVERSIZE")
+    if r.returncode != 0 or len(r.stdout) > 8192:
+        # CI-only fixed fixture: emit a bounded sanitized reason; no secrets
+        # or environment values are passed to Docker in this prototype.
+        detail = r.stderr.decode("ascii", "replace")[-1200:]
+        detail = re.sub(r"[^a-zA-Z0-9._/,:=+()\\[\\] -]", " ", detail)
+        reason = ("M15J4_DOCKER_FAILED rc=" + str(r.returncode) +
+                  " out_bytes=" + str(len(r.stdout)) +
+                  " stderr_tail=" + detail[:600])
+        raise StageFixtureDenied(reason)
     try:
         return r.stdout.decode("ascii").strip()
     except UnicodeError:
