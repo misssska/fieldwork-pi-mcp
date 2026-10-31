@@ -162,3 +162,32 @@ végrehajtott teljes TypeScript/Vitest/ESLint/CI ellenőrzéssel;
 a tesztfájl Vitest tesztjei továbbra is **NOT_RUN**.
 Az eredmény csak a lefordítható TSX magra ad bizonyítékot,
 nem a referencia-paritásra vagy a működő stagingre.
+
+
+## 9. FieldWork app – naptár v2 izolált működési regresszió és M5 lezárási akadály
+
+**Dátum: 2026-10-31, elválasztva a production állapottól.**
+
+### Naptár v2 – elkészült és megőrzött jelölt, nem staging release
+
+- Az előző Pi MCP `7eace13a5e854552b0abe55969b438fe` háromfájlos, csak statikusan ellenőrzött **v1** jelöltet további, független **v2** munkacsomagban fejlesztettük.
+- `CalendarView.tsx` v2 SHA256 `9dd99d17472e0d2bf099d14ea00206e844022b2ccb24c3520789889f7df1be02`. Havi (42 cella), heti (7 cella), lista, hétfői hétkezdés, magyar dátumtartomány, érvénytelen/törölt napok kizárása, napi többletfeladatok **megnyitható** részletes listája, időszakváltáskor bezárás, ARIA rácssorok.
+- `FieldWork_Calendar_v2_isolated_candidate_20261031.zip` SHA256 `4d333d1a1814256398d134bcaf5448da25aa875eeb2ceeb2212206083565d8f7`: felhasználó **ChatGPT Library `/FieldWork/...` könyvtárában** feltöltve és visszaigazolva. Tartalmazza a TSX forrást, **kiegészítő** CSS-t, test-only React/FieldworkContext stubokat, saját offline logikai tesztet, magyar README-t. **Nem** kell a v2-t egyből telepíteni.
+- 2026-10-31 offline, független Node22 + TypeScript 5.8.3 mock környezet: **8/8 dinamikus JSX/hook naptárlogikai teszt PASS**, és külön **strict tsc --noEmit PASS**, de ez helyettesítő React/FieldworkContext típusokra épül. **Valódi alkalmazásfüggőségek, Vitest, ESLint, Playwright, pixelpontos referencia, staging E2E NEM FUTOTTAK**. A Pi MCP `fieldwork_sandbox_command` jelenleg `PHOTO_SUITE_BACKEND_ONLY` hibával tagadja meg a frontend Node/npm hívást. A v2 a Pi korábbi sandboxjába **nem lett érvényesen egyesítve**; a production/staging változatlan.
+- **Kritikus funkcionális rés:** a kanonikus 1:1 referencia `R08 calV/assignToDay` **naphoz rendelést, napkijelölést, új és meglévő feladat napra szerkesztését** is elvárja. A mostani naptár v2 csak jobb megjelenítő. A `R08 FULL PARITY` még **BLOCKED**; a teljes referenciáról a felhasználói Library `FIELDWORK_REFERENCE_1TO1_SPEC_HU_M6_BOVITETT.md` dokumentuma rendelkezik.
+
+### M5 fotókomment canary – integritás PASS, funkcióteszt BLOCKED
+
+- A Library meglévő `FieldWork_Paritas_M5_FotoKomment_Canary_20261030.zip` csomagját izoláltan ellenőriztük: SHA256 `9afc910e945d386a51286888842ac5cb70d41b5a48a99d7151ff36e622232d9f`, saját `verify.py`: `M5_PACKAGE_INTEGRITY_PASS 10 files`, Python `compileall`: PASS.
+- Korábbi M5 natív frontend kapu: **99/100**, egy `DocumentViewer.test.tsx` FAIL: `Unable to find role="img" and name "Terv one"`; a nézet `Dokumentum betöltése…` állapotban maradt. Pontos gyökérok **nem bizonyított**; lehetséges aszinkron React mock/függőséghiba, de nincs újabb teljes Vitest futás.
+- Az M5 package `launch_canary.sh` pontos `parity-m4.d2DIn9Zr` bázist és `fieldwork-parity-m5` külön test projectet követel, külső M5 stage csak teljes frontend + backend kapu után indulhat. Az M5 csomag `integrate.py` külön `parity-m5.*` útvonalat használ; **ne** írja át az `/opt/fieldwork` forrást.
+- A Library kanonikus M6 spec alapján az **M6 egyetlen átfogó** teljes feladatszerkesztő és foto-/team-/terv-/naptár-jogosultsági mérföldkő, amit csak M5 teljes PASS után szabad lezárni. Nem szabad a hiányzó R08 vagy M5 miatt újabb félkész GUI-t productionnek nevezni.
+
+### Konkrét folytatás / ellenőrzési korlát
+
+1. Az előző M5 `DocumentViewer.test.tsx` hibát **valódi** izolált frontend Vitest buildgel reprodukálni ugyanazon kandidátuson; aktív test-hiba vs időzítés különválasztása, javítás minimális diffel és 100/100+ full suite bizonyítékkal.
+2. A valódi októberi staging release forrását ellenőrizni, mert az MCP `fieldwork_stage_status` **nem** állít bizonyított UI source-hash paritást, a tracked `main` viszont régi.
+3. A R08 `assignToDay` teljes mutációs UX-et a közös M6 TaskEditor API és jogosultsági guard mentén integrálni; dátum és korábbi task projekthatár + idempotent mutation tesztje kötelező.
+4. A `/opt/fieldwork` produkciós source, DB, Docker változatlan, külön app GitHub repository/forrásmentés továbbra sem igazolt.
+
+**M5 és M6 deployment=BLOCKED; M15-E/operator cutover=BLOCKED; FieldWork production healthy az utolsó valódi read-only lekérdezésnél.**
