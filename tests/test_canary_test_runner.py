@@ -210,6 +210,26 @@ class TestRunnerTests(unittest.TestCase):
                 runner.run(TID)
             self.assertEqual(exec_.call_count, 5)
 
+    def test_dependency_drift_denied_before_any_docker(self):
+        dep = self.src / runner.DEPENDENCY_FILES["frontend_lock_sha256"]
+        dep.write_bytes(b"new dependency without appliance rebuild")
+        with patch.object(stage, "inspect_stage", return_value=SNAPSHOT), \
+             patch.object(runner, "_run_docker") as exec_:
+            with self.assertRaisesRegex(q.QualificationDenied,
+                                        "TEST_DEPENDENCIES_NOT_MATCHING_APPROVED_IMAGE"):
+                runner.run(TID)
+            exec_.assert_not_called()
+        self.assertFalse((self.home / runner.TESTS_REL / TID).exists())
+
+    def test_missing_attestation_key_denied_before_test_execution(self):
+        (self.home / runner.KEY_REL).unlink()
+        with patch.object(stage, "inspect_stage") as gate, \
+             patch.object(runner, "_run_docker") as exec_:
+            with self.assertRaises(q.QualificationDenied):
+                runner.run(TID)
+            gate.assert_not_called()
+            exec_.assert_not_called()
+
     def test_policy_fails_without_any_execution(self):
         self.pin.unlink()
         with patch.object(stage, "inspect_stage") as gate, \
