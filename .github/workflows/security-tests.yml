@@ -23,3 +23,5 @@ jobs:
         run: sha256sum updater/activate_once.py
       - name: Print SHA256 of reviewed local artifact extension v2
         run: sha256sum updater/activate_artifact_extension_v2.py
+      - name: Print SHA256 of single-shot read-only Pi host auditor
+        run: sha256sum updater/pi_sandbox_orphan_audit.py
