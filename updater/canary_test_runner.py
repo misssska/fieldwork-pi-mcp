@@ -193,7 +193,23 @@ def _run_docker(argv: list[str], timeout: int) -> tuple[bool, str]:
         return (proc.returncode == 0, "EXIT_0" if proc.returncode == 0
                 else "NONZERO_EXIT")
     except subprocess.TimeoutExpired:
-        return (False, "TIMEOUT_MANUAL_CONTAINER_REVIEW_REQUIRED")
+        # Docker client timeouts do not guarantee the detached daemon has
+        # stopped the container. Remove ONLY the exact generated test name.
+        try:
+            name_index = argv.index("--name") + 1
+            name = argv[name_index]
+            q.require(re.fullmatch(r"fw-canary-[a-f0-9]{32}-[0-4]", name)
+                      is not None, "TEST_CONTAINER_NAME_DENIED")
+            cleanup = subprocess.run(
+                ["docker", "rm", "-f", name],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=20, check=False,
+            )
+            return (False, "TIMEOUT_CONTAINER_REMOVED" if cleanup.returncode == 0
+                    else "TIMEOUT_CLEANUP_NOT_CONFIRMED")
+        except (OSError, ValueError, subprocess.SubprocessError):
+            return (False, "TIMEOUT_CLEANUP_NOT_CONFIRMED")
     except (OSError, subprocess.SubprocessError):
         return (False, "DOCKER_LAUNCH_FAILED")
 
