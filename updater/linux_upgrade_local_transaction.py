@@ -178,7 +178,7 @@ def _journal_read(txn: Path) -> dict:
         raise LocalApplyDenied("LOCAL_ORIGINAL_PLAN_INVALID") from exc
     require(gate.canon(original_request) == plan,
             "LOCAL_ORIGINAL_PLAN_NONCANONICAL")
-    digest = hashlib.sha256(gate.BIND + b"\\0" +
+    digest = hashlib.sha256(gate.BIND + b"\0" +
                             gate.canon(original_request)).hexdigest()
     require(digest == obj["plan_sha256"] and
             original_request.get("host_id") == obj["host_id"] and
