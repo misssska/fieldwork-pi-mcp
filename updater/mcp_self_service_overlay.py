@@ -102,8 +102,10 @@ def transform_mcp(source: bytes) -> bytes:
     # string literal for the allowlist have one AST occurrence instead.
     # Both shapes preserve exact source anchors and exactly three new
     # registrations; unexpected third appearances always fail closed.
+    counts = {name: names.count(name) for name in NAMES}
     require(set(names) == NAMES and
-            all(names.count(name) in (1, 2) for name in NAMES),
+            len(set(counts.values())) == 1 and
+            next(iter(counts.values())) in (1, 2),
             "MCP_TOOL_REGISTER_AUDIT_COUNT_DENIED")
     return result
 
