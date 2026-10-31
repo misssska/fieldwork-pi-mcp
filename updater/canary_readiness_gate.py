@@ -134,6 +134,17 @@ def inspect(transfer_id: str) -> dict:
                   attested.get("canary_start_authorized") is False and
                   attested.get("production_modified") is False,
                   "TEST_ATTESTATION_LINEAGE_MISMATCH")
+        # A concurrent retirement must not turn an already checked ZIP
+        # into an apparently complete evidence chain. Requalify the actual
+        # inbox bytes after the signed test receipt has been inspected.
+        final_transfer = q.qualify_transfer(transfer_id)
+        q.require(type(final_transfer) is dict and
+                  final_transfer.get("status") ==
+                  "STATIC_CANARY_ARCHIVE_QUALIFIED_NOT_STAGED" and
+                  final_transfer.get("transfer_id") == transfer_id and
+                  final_transfer.get("artifact_sha256") == archive_hash and
+                  final_transfer.get("base_commit") == commit,
+                  "TRANSFER_CHANGED_DURING_READINESS")
         result["completed_gates"].append(TESTS)
         return {
             **result,
