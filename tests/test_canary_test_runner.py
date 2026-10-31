@@ -6,6 +6,7 @@ test-appliance image was built on the Pi or that FieldWork tests ran on the Pi.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import tempfile
@@ -40,11 +41,20 @@ class TestRunnerTests(unittest.TestCase):
         self.addCleanup(self.home_patch.stop)
         self.src = self.home / inbox.STATE.parent / stage.STAGE_NAME / TID
         self.src.mkdir(parents=True, mode=0o700)
+        deps = {}
+        for key, relative in runner.DEPENDENCY_FILES.items():
+            blob = (key + "\n").encode()
+            path = self.src / relative
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            path.write_bytes(blob)
+            path.chmod(0o600)
+            deps[key] = hashlib.sha256(blob).hexdigest()
         pin = self.home / runner.PIN_REL
         pin.parent.mkdir(parents=True, exist_ok=True)
         pin.write_text(json.dumps({
             "schema": 1, "profile": runner.PROFILE, "image": IMAGE,
             "stage_testing_only": True, "locally_approved": True,
+            **deps,
         }))
         pin.chmod(0o600)
         self.pin = pin
