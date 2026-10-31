@@ -38,7 +38,7 @@ def require(condition: bool, code: str) -> None:
 
 def _read_proc(path: Path, limit: int) -> bytes:
     """Read only one exact procfs member; procfs st_size may be zero."""
-    require(type(path) is Path and limit in (MAX_STAT, MAX_STATUS),
+    require(isinstance(path, Path) and limit in (MAX_STAT, MAX_STATUS),
             "HOST_PROC_PATH_DENIED")
     try:
         fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC |
