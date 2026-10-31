@@ -47,7 +47,7 @@ def fixed_checkout() -> Path:
 
 
 def _git(repo: Path, *args: str, max_output: int = MAX_GIT_STDOUT) -> bytes:
-    q.require(type(repo) is Path and not repo.is_symlink(),
+    q.require(isinstance(repo, Path) and not repo.is_symlink(),
               "GIT_REPOSITORY_UNSAFE")
     safe_env = {
         "PATH": "/usr/bin:/bin",
