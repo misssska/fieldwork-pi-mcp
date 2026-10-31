@@ -1,0 +1,37 @@
+name: M14 Linux MCP update gate portable native security tests
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/linux_upgrade_gate.py
+      - updater/linux_upgrade_inbox.py
+      - updater/linux_upgrade_local_transaction.py
+      - tests/test_linux_upgrade_gate.py
+      - tests/test_linux_upgrade_inbox.py
+      - tests/test_linux_upgrade_local_transaction.py
+      - .github/workflows/m14-linux-update-gate.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m14-update-gate-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  host-gates:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run local-only release security and recovery tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          python3 -m unittest discover -s tests -p 'test_linux_upgrade_*.py' -v
+          python3 -m compileall -q updater/linux_upgrade_gate.py updater/linux_upgrade_inbox.py updater/linux_upgrade_local_transaction.py
+          echo "M14_OFFLINE_APPROVAL_AND_RECOVERY_PASS"
+          echo "M14_NO_PI_DEPLOYMENT_OR_MCP_TOOL_REGISTRATION"
