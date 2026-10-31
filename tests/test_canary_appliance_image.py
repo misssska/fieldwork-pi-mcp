@@ -175,6 +175,10 @@ class ApplianceScriptContract(unittest.TestCase):
         self.assertNotIn("export DATABASE_URL=", script)
         self.assertIn('if [ "${DATABASE_URL+x}" ]; then', script)
         self.assertIn("REFUSING_INHERITED_APP_DATABASE_URL", script)
+        self.assertIn("cp -R /source/server/. /work/server/", script)
+        self.assertIn("cd /work/server", script)
+        self.assertIn("pytest -q -p no:cacheprovider", script)
+        self.assertIn("test ! -e /work/server/.env || exit 71", script)
 
     def test_dockerfile_requires_named_contexts_and_source_hashes(self):
         dockerfile = DOCKERFILE.read_text()
