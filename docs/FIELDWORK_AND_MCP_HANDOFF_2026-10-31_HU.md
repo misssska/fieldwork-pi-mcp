@@ -91,3 +91,59 @@ J5 következő valódi feladata nem újabb teszt-fixture, hanem az új **külön
 
 Ez a GitHub commit **checkpoint/terv**, és csak az MCP repository dokumentációját módosítja.
 Nem másolja a Pi helyi alkalmazás-kódját, DB-jét, dokumentumait vagy `/opt/fieldwork` változásait a GitHubra; nem emeli át a piszkos munkaállapotot, és nem zárja le az app saját git-ágát. Aki az egész appot akarja biztonságosan GitHubra menteni, előbb külön repo-/remote- és secret-review eljárást igényel.
+
+
+## 8. FieldWork app – új, izolált naptárfunkció-javaslat (2026-10-31, APP UI)
+
+**A korábbi alkalmazás-paritás munkaszál folytatása.** Nem MCP updater-fejlesztés.
+
+A valódi Pi `/opt/fieldwork` tracked `main` forrásában a `frontend/src/components/CalendarView.tsx` még **csak listás, passzív** naptárt tartalmazott, miközben a felhasználói cél referenciaazonos teljes funkcionalitás. A Pi produkciós forrását nem írtuk át, és a korábban futó, külön staging `cfb10c47c1b3413c9adbd50e5c7249ef` release-t sem cseréltük le.
+
+**Izolált változtatás kész:**
+- `proposal_id=7eace13a5e854552b0abe55969b438fe`
+- `patch_sha256=f5179b7203ef9a72e8cc20e6e3f6558b3ddf89d24a7dd37a5c8496df70c12823`
+- `status=SANDBOX_STATIC_PASS`, `production_modified=false`
+- `CalendarView.tsx` új SHA256 `5770d41460d7294b4f9b9443fccbf089052d7f8842beacf9517a254b3b06607d`
+- `styles.css` új SHA256 `640c94622ef03c121e08949ef1626ba80ed1a534167755990afdfeb9f8c9ca45`
+- `Layout.test.tsx` új SHA256 `40a6b5b030a68a3eec4abd929dbbb01002d3cf18c007529aac812ff1b446d547`
+
+A csomag magyar havi/heti/lista naptár nézetet, hétfői hétkezdést,
+naptári hónapváltást, mai napra ugrást, projektcímkézett feladatokat,
+érvénytelen naptári dátumok kizárását, 3 elem feletti napi
+összesítést és mobil CSS-t ad a **már jogosultság szerint szűrt**
+`FieldworkContext` task adataiból. Négy React/Vitest UI-regresszió
+került a már meglévő `Layout.test.tsx` állományba.
+
+**Fontos tesztkorlát:** Az MCP `fieldwork_sandbox_apply`
+csak forrás-/git-apply/Python AST ellenőrzést végzett. Ekkor a
+`JS/TS syntax not checked` és `code_executed=false`.
+A `fieldwork_sandbox_command` frontend Node/npm tesztet
+**`PHOTO_SUITE_BACKEND_ONLY`** szabály miatt elutasította.
+A négy teszt tehát **meg van írva, de NINCS lefuttatva**,
+TypeScript/ESLint/Vitest PASS-t és UI-paritást még NEM szabad állítani.
+Az első, csak CalendarView fájlt tartalmazó proposal
+`833930f5e4ce456d8df189be12b8f538` szintén
+SANDBOX_STATIC_PASS, de a 3 fájlos proposal a mérvadó.
+
+**Tilos a jelenlegi staginget felülírni a régi `main` alapján**,
+mert az októberi PlanWorkspace/ReferenceTaskBoard/TaskFix
+változások nem feltétlenül szerepelnek a tracked `main` forrásban.
+
+**Következő alkalmazáslépés:**
+1. A fenti proposal teljes source diffjét és a futó staging release
+   aktuális forrásfájljait a külön staging/candidate
+   munkakönyvtárban összevetni – driftet/konfliktust jelölni.
+2. Biztonságos, elkülönített Node/npm CI vagy sandbox
+   `npm run typecheck && npm run lint && npm test`
+   kaput bevezetni; lehetőleg külön CalendarView tesztfájl
+   saját repo-ágon (az MCP patch policy jelenleg új fájlt tilt).
+3. A referencia szerinti komplett feladat/tábla/terv UI
+   további munkáját a ténylegesen futó októberi staging
+   canonical source-ból folytatni; rollback és
+   felhasználói elfogadás nélkül nincs staging cutover.
+4. A Pi helyi `main` piszkos munkafáját, a production DB-t
+   és az éles konténereket változatlanul hagyni.
+
+**Állapot:** `FIELDWORK_CALENDAR_CANDIDATE_STAGED_STATIC_PASS`;
+`FIELDWORK_UI_TESTS_NOT_RUN`; `STAGE_CUTOVER_NOT_AUTHORIZED`;
+`PRODUCTION_UNCHANGED`.
