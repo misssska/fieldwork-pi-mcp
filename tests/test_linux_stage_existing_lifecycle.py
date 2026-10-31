@@ -13,6 +13,8 @@ from unittest.mock import patch
 
 from updater import linux_stage_existing_lifecycle as m
 
+FIXED_DOCKER_EXECUTOR = m._docker
+
 NOW = 1793459000
 SECRET = b"independently-secured-local-only-test-operator-key"
 
@@ -242,7 +244,7 @@ class StageLifecyclePolicyTests(unittest.TestCase):
             [m.DOCKER,"container","run","--privileged"],
         ):
             with self.subTest(raw=raw),self.assertRaises(m.StageDenied):
-                m._docker(raw)
+                FIXED_DOCKER_EXECUTOR(raw)
         import inspect
         src=inspect.getsource(m)
         self.assertNotIn("shell=True",src)
