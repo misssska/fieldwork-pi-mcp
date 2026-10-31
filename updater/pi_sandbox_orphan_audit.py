@@ -135,3 +135,44 @@ def inspect_host(run_id: str, *, historical_cleanup_failed: bool = True) -> dict
     require(proc.returncode == 0, "AUDIT_DOCKER_QUERY_FAILED")
     return classify_inventory(proc.stdout, run_id,
                               historical_cleanup_failed=True)
+
+
+# One-shot local operator entrypoint. Never registers an MCP capability, starts
+# or stops containers, touches the production repository, or grants approval.
+HISTORICAL_FAILED_RUN = "b901aaabbbcccdddeeefff0000000020"
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Print only a bounded redacted result for the known failed cleanup."""
+    import sys
+
+    args = sys.argv[1:] if argv is None else argv
+    if args:
+        print(json.dumps({
+            "status": "AUDIT_BLOCKED",
+            "reason": "AUDIT_ARGUMENTS_NOT_ALLOWED",
+            "historical_cleanup_receipt_resolved": False,
+            "sandbox_test_retry_authorized": False,
+            "container_removal_authorized": False,
+        }, sort_keys=True))
+        return 2
+    try:
+        result = inspect_host(HISTORICAL_FAILED_RUN)
+    except (HostAuditDenied, OSError):
+        # No raw Docker error output or exception text can reach remote logs.
+        print(json.dumps({
+            "status": "AUDIT_BLOCKED",
+            "reason": "AUDIT_LOCAL_HOST_QUERY_NOT_VERIFIED",
+            "historical_cleanup_receipt_resolved": False,
+            "sandbox_test_retry_authorized": False,
+            "container_removal_authorized": False,
+        }, sort_keys=True))
+        return 2
+    print(json.dumps(result, sort_keys=True))
+    # A readable host inventory is useful, but NEVER means the failed receipt
+    # has been cleared. Result fields explicitly deny all such permissions.
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
