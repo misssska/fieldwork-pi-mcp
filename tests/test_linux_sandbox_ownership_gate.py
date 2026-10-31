@@ -79,7 +79,7 @@ class SandboxOwnershipTests(unittest.TestCase):
             ("name","homeassistant"),
             ("kind","volume"),
             ("role","production"),
-            ("id","f"*64),
+            ("id","f"*63),
             ("labels",{"org.fieldwork.sandbox.run":RUN,
                        "org.fieldwork.sandbox.proposal":PROPOSAL,
                        "org.fieldwork.sandbox.role":"production"}),
