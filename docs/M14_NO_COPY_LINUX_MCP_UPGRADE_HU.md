@@ -1,3 +1,15 @@
+# M14-A – történeti fázis; az új jóváhagyó UI már elkészült
+
+Az alábbi dokumentáció az M14 induló állapotát mutatja.
+A korábban hiányzó **offline, localhost-only böngészős jóváhagyó**
+és az aláírt helyi átadás már elkészült. Aktuális részletek:
+[M14-B helyi böngészős jóváhagyó](M14B_LOCAL_BROWSER_APPROVAL_HU.md).
+Az önálló, külön OS-felhasználóként futó és
+biztonságosan távolról elérhető szolgáltatás
+továbbra sincs telepítve.
+
+---
+
 # M14 – SSH-másolgatás nélküli, gépenként jóváhagyott Linux MCP-frissítések
 
 Állapot: **GITHUBON FEJLESZTETT ÉS TESZTELT BIZTONSÁGI MAG.**
