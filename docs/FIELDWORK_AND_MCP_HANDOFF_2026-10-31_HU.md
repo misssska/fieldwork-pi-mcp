@@ -511,3 +511,80 @@ production DB, Docker és a működő staging írás nélkül maradt.
 **Állapot:** `M5R6_BUNDLE_SHA_PASS`; `M5R6_31_UNIT_PASS`; `M5R6_FASTAPI_SQLITE_15_PASS`; `M5R6_REAL_PYTEST_FIXTURE_PASS_SKIP_BLOCKED`; `M5_FULL_APP_CI_NOT_RUN`; `M5_CANARY_NOT_DEPLOYED`; `PRODUCTION_UNCHANGED`.
 
 **Valódi következő milestone:** ne növeljük tovább csak tesztkapu-javítások miatt a verziószámot. Külön jóváhagyott, jogosultságában szűkített **Pi frontend M5 teszt-végrehajtó** kell (`npm ci/typecheck/lint/vitest` fix, rögzített M4 snapshotban, biztonságosan korlátozott Docker helperen), vagy a teljes FieldWork app **privát GitHub repo** CI-je. Jelen 36 MCP tool egyikével sem igazolható a teljes frontend anélkül, hogy a meglévő host/Docker privilege boundaryt megkerülnénk.
+
+
+## 15. M5 R6 CI-kompatibilitási JAVÍTÁS – teljes frontend tesztfájlleltár (2026-10-31)
+
+**Bizonyított új gyökérok a korábbi `M5_R6_Comment_Submission_And_Vitest_Gate` csomagban:** a
+`m5r5_test_gate.py` `FRONT_PASS_FILE` reguláris kifejezése csak
+`src/components/*.test.tsx` tesztfájlokat fogadott el. A Pi tényleges
+`frontend/vite.config.ts` beállítása azonban
+`include: ['src/**/*.test.{ts,tsx}']`, és a Pi read-only forrásleltára
+**ténylegesen tartalmaz** `src/api/client.test.ts`,
+`src/auth/AuthContext.test.tsx`,
+`src/data/FieldworkContext.integration.test.tsx`
+és más könyvtárak alatti teszteket is.
+
+Az eredeti R6 parser a 6 tesztfájlból álló, 34
+sikeres tesztet tartalmazó, FieldWork-könyvtárszerkezetet
+modellező naplót **tévesen elutasította**:
+`STOP M5R6_EXACT_VITEST_SUCCESS_ROWS_REQUIRED`.
+Ugyanezt a naplót a javított parser elfogadta:
+`M5R5_FRONTEND_VERIFIED`, `test_files_passed=6`,
+`tests_passed=34`, `cutover_authorized=False`.
+
+**A javítás nem új M5-funkcióváltozat:** az R6 korrekciója.
+A teljes ZIP külön, változatlan fájlnévvel és SHA256 pinekkel
+átadásra került:
+- `FieldWork_M5_R6_CI_Compatibility_Fix_20261031.zip`
+- **SHA256 `36486e9965057bfa9811014e63dbb370c28707d7f5c5ef3da2da89a44c2f025c`**
+- `/FieldWork/FieldWork_M5_R6_CI_Compatibility_Fix_20261031.zip`
+  – privát ChatGPT Library feltöltés sikeres és nyugtázott.
+- 18 alkalmazásváltozás- és ellenőrző fájl pontos SHA256
+  manifesttel, ZIP CRC ellenőrzéssel.
+- A parser immár `src/**/<filename>.test.ts` és
+  `src/**/<filename>.test.tsx` tesztfájlokat ismer fel,
+  teljes relatív útvonallal, és megköveteli a 2 konkrét
+  M5 test file pozitív eredményét, a teljes file/test
+  darabszámot és a két egyértelmű összesítést.
+  Figyelmeztetésben szereplő név, duplikált név,
+  hiányzó darabszám, `..` útvonalszegmens
+  vagy kétes log továbbra is **STOP**.
+
+**Tényleges teszteredmények a javított ZIP forrásával:**
+- `python verify.py .` ⇒ `M5_PACKAGE_INTEGRITY_PASS 18 files`.
+- `unittest` ⇒ **34/34 PASS** (korábbi 31 + 3 valós
+  teljes tesztútvonal kompatibilitási negatív/pozitív teszt).
+- `isolated_backend_contract_smoke.py` ⇒ **15/15 PASS**
+  (FastAPI + SQLAlchemy in-memory SQLite helyettesítő modellel).
+- `PhotoGallery.tsx` és `PhotoGalleryM5.test.tsx`
+  TypeScript 5.8.3 parser ⇒ 0 hiba.
+- `bash -n launch_canary.sh` ⇒ PASS.
+- A **valódi** FieldWork összes Vitest-, ESLint-,
+  TypeScript-, PostgreSQL-, migrációs- és 18085 canary
+  tesztje **TOVÁBBRA SINCS LEFUTTATVA**.
+  A 34/34 kifejezetten Python szerződésellenőrzés,
+  nem teljes frontendteszt.
+
+**Forrás-/futtatóhozzáférés igazolt korlát:**
+- GitHub kapcsolaton a `misssska` tulajdonban **nincs**
+  önálló FieldWork alkalmazás-repository.
+- A Library teljes M4 ZIP helyett csak M4 változáscsomagot
+  tartalmaz; npm/Vitest függőségek sincsenek telepítve ebben
+  a konténerben.
+- Pi MCP: a teljes alkalmazás `fieldwork_tree` leltározható,
+  de nincs engedélyezett, tetszőleges frontend npm teszt
+  runner vagy az M4 `stage-v06/parity-m4.d2DIn9Zr`
+  teljes forrásfájljait hitelesen átadó/ellenőrző eszköz.
+  A korábbi Docker-konténerek `exited` állapotban vannak.
+- **Ne** próbáljuk meg a Pi korlátozó MCP szabályát
+  megkerülni; olyan helyileg jóváhagyott, privát
+  CI-végrehajtó vagy külön privát GitHub repository kell,
+  amely a teljes eredeti M4 forrást és npm lockfile-t
+  biztonságosan eléri.
+
+**Kanonikus kiadási állapot:** a régebbi R6 ZIP
+`9c9a53a8...` **tesztkapuja elavult**, használandó
+helyette a fent SHA-pinnelt `R6_CI_Compatibility_Fix`;
+`M5_FULL_APP_CI_NOT_RUN`; `M5_CANARY_NOT_DEPLOYED`;
+`M6_PARITY_BLOCKED`; `PRODUCTION_UNCHANGED`.
