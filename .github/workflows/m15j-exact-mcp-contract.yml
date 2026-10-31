@@ -1,0 +1,53 @@
+name: M15J exact 36 MCP tool Docker dependency and fail-closed cutover contract
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/m15j_exact_mcp_contract.py
+      - tests/test_m15j_exact_mcp_contract.py
+      - .github/workflows/m15j-exact-mcp-contract.yml
+  pull_request:
+    paths:
+      - updater/m15j_exact_mcp_contract.py
+      - tests/test_m15j_exact_mcp_contract.py
+      - .github/workflows/m15j-exact-mcp-contract.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m15j-tool-contract-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  exact-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exact 36 tool and privileged Docker negative gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q updater/m15j_exact_mcp_contract.py
+          python3 -m unittest discover -s tests -p 'test_m15j_exact_mcp_contract.py' -v
+          python3 -m updater.m15j_exact_mcp_contract > "$RUNNER_TEMP/m15j.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from updater import m15j_exact_mcp_contract as c
+          d=json.loads(Path(os.environ["RUNNER_TEMP"]+"/m15j.json").read_text())
+          assert d["count"] == 36
+          assert sum(d["counts"].values()) == 36
+          assert d["counts"]["stage_compose_helper"] == 3
+          assert d["counts"]["sandbox_helper"] == 2
+          assert d["counts"]["docker_read_proxy"] == 5
+          assert d["counts"]["no_docker"] == 26
+          assert d["cutover_authorized"] is False
+          assert c.verify_live_inventory(list(c.EXPECTED), c.SOURCE_PIN)["cutover_authorized"] is False
+          print("M15J_EXACT_36_TOOL_OWNERSHIP_GATE_PASS")
+          print("M15J_PI_DOCKER_REVOKE_AND_M15E_ACTIVATION_STILL_BLOCKED")
+          PY
