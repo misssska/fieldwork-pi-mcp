@@ -482,3 +482,32 @@ production DB, Docker és a működő staging írás nélkül maradt.
 `DOCUMENTVIEWER_ROOT_CAUSE_NOT_PROVEN`;
 `M5_DEPLOY_BLOCKED`;
 `M6_PARITY_BLOCKED`.
+
+
+## 14. FieldWork app – M5 R6: kommentbeküldési versenyhelyzet + valódi tesztmodul-nyugta javítás (2026-10-31)
+
+**Új valódi kliensprobléma, izolált forráselemzéssel az M5 R5-ben:**
+- A `PhotoGallery.tsx` POST folyamat alatt nem tiltotta a megjegyzés inputot. Új gépelés a `pending.current` UUID-t törölhette, amikor a szerver már elfogadta az eredeti kommentet; későbbi válasz „nem igazolt” hiba, majd új UUID-val retry esetén duplikált hozzászólás keletkezhetett. R6-ban a POST indításakor **immutábilis {id,text} snapshot**, input `disabled={submitting}` és az eredeti id/fotó/szöveg, `total`, `created` szigorú server receipt összevetése szerepel.
+- A `PhotoGalleryM5.test.tsx` ugyanúgy egyszerű objektummal helyettesítette a teljes `URL` konstruktort, mint a korábban hibás DocumentViewer teszt; R6-ban a URL konstruktor osztály marad, csak a Blob URL statikus API mockolt, `vi.unstubAllGlobals()` helyreállítással.
+- Az M5 R5 frontend logellenőrző **csupán szövegként keresett fájlneveket**: egy figyelmeztetésben szereplő `DocumentViewer.test.tsx` vagy `PhotoGalleryM5.test.tsx` hamis bizonyítékká válhatott. R6-ban csak a tényleges, pozitív Vitest `✓ src/components/...test.tsx (N tests)` sorok fogadhatók el, a sorok száma és az egyes fájlok tesztösszege a teljes pass-summaryval is egyezik. Duplikált, hiányzó vagy eltérő számú sor **STOP**. Ez a rögzített Vitest default reporterhez kötött; eltérő formátum fail-closed, nem automatikus átengedés.
+
+**Elkészült teljes, előző M5 R5-re épülő izolált csomag:**
+- `FieldWork_M5_R6_Comment_Submission_And_Vitest_Gate_20261031.zip`
+- SHA256: `9c9a53a82413c8bc56a79c370b5bae89d78f9c96a66c0b4ab4341766a5bb0392`
+- ZIP CRC PASS, **18 fájl** SHA256-manifest `M5_PACKAGE_INTEGRITY_PASS 18 files` (a ZIP-ben 19 bejegyzés van manifesttel együtt).
+- Sikeres Library feltöltés: `/FieldWork/FieldWork_M5_R6_Comment_Submission_And_Vitest_Gate_20261031.zip`, nem került application source a publikus MCP GitHub repóba.
+- Célzott Python szerződéspróbák: **31/31 PASS**, beleértve a 26 meglévő R5/R4/R3 és 5 új R6 log/source-regressziós tesztet.
+- A tényleges M5 `photo_comments_api.py` routerrel izolált FastAPI TestClient+SQLAlchemy SQLite próba: **15/15 PASS**, minimális modellhelyettesítőkkel.
+- TypeScript **5.8.3** `transpileModule`: `PhotoGallery.tsx`, `PhotoGalleryM5.test.tsx`: **0 parser diagnostic**; Bash `launch_canary.sh` és Python AST/compile PASS.
+- A kapu-parser valódi, ténylegesen futtatott pytest `-v` formátumon ellenőrizve: 5 M5 nevű egyszerű teszt + 17 kontrollteszt **22/22 PASS** esetben pozitív receipt, 1 `SKIPPED` teszt esetén **BLOCK**. Figyelem: ez nem a FieldWork teljes DB-/jogosultsági tesztrendszere, hanem *reprodukálható szintetikus tesztfunkciókkal futtatott valódi pytest*, kizárólag a log-parser kompatibilitásának bizonyítására.
+
+**Éles Pi read-only tények az M5 R6 után:**
+- `fieldwork_mcp_docker_inventory`: 26 konténer; `fieldwork-parity-m4-*` és `fieldwork-parity-m5-*` **exited**, `fieldwork-stage-{nginx,api,db}` és `fieldwork-{nginx,api,db}` **running**.
+- `fieldwork_stage_smoke`: `STAGE_HEALTH_PASS`, MCP `v0.6.1`; `/opt/fieldwork` Git-munkafája változatlanul dirty.
+- A korábbi pontos M4 `stage-v06/parity-m4.d2DIn9Zr` könyvtár **fájlonkénti integritását a jelen MCP toolokkal nem tudtuk host oldalon ellenőrizni**: a docker inventory önmagában nem bizonyítja a forrásfájlok jelenlétét.
+- A Pi MCP `fieldwork_sandbox_command` továbbra is korlátozott (`PHOTO_SUITE_BACKEND_ONLY`); az artifact inbox a ZIP-et biztonságosan átvehetné, de **nem ad engedélyt host parancsra/Compose buildre**.
+- A **teljes FieldWork frontend Vitest, valódi M4→M5 integráció, PostgreSQL migráció, 18085 canary E2E nem futott**. Tilos R6-ot kész produkciós release-nek nevezni vagy a Pi production Docker/DB-t módosítani.
+
+**Állapot:** `M5R6_BUNDLE_SHA_PASS`; `M5R6_31_UNIT_PASS`; `M5R6_FASTAPI_SQLITE_15_PASS`; `M5R6_REAL_PYTEST_FIXTURE_PASS_SKIP_BLOCKED`; `M5_FULL_APP_CI_NOT_RUN`; `M5_CANARY_NOT_DEPLOYED`; `PRODUCTION_UNCHANGED`.
+
+**Valódi következő milestone:** ne növeljük tovább csak tesztkapu-javítások miatt a verziószámot. Külön jóváhagyott, jogosultságában szűkített **Pi frontend M5 teszt-végrehajtó** kell (`npm ci/typecheck/lint/vitest` fix, rögzített M4 snapshotban, biztonságosan korlátozott Docker helperen), vagy a teljes FieldWork app **privát GitHub repo** CI-je. Jelen 36 MCP tool egyikével sem igazolható a teljes frontend anélkül, hogy a meglévő host/Docker privilege boundaryt megkerülnénk.
