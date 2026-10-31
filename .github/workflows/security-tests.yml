@@ -39,3 +39,5 @@ jobs:
         run: sha256sum updater/linux_upgrade_review_ui.py updater/linux_upgrade_local_handoff.py
       - name: Print M14C separated Linux operator and trust preflight SHA256
         run: sha256sum updater/linux_upgrade_trust_gate.py updater/linux_upgrade_operator_app.py updater/linux_upgrade_review_ui.py deploy/systemd/linux-mcp-operator.service
+      - name: Print M14E stage lifecycle exact pinned SHA256
+        run: sha256sum updater/linux_stage_existing_lifecycle.py
