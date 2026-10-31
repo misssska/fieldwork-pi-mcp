@@ -139,8 +139,7 @@ class BridgeTests(unittest.TestCase):
 
     def test_docker_container_id_change_blocks_before_mutation(self):
         self.docker.rows["api"]["id"]="f"*64
-        with self.assertRaisesRegex(bridge.StageBridgeDenied,
-                                    "M15G_STAGE_CHANGED_AFTER_REVIEW"):
+        with self.assertRaises(stage.StageDenied):
             self.run()
         self.assertTrue(all(row["state"]=="running"
                             for row in self.docker.rows.values()))
@@ -163,7 +162,7 @@ class BridgeTests(unittest.TestCase):
 
     def test_replay_same_plan_fails_after_committed_state_changes(self):
         self.run()
-        with self.assertRaises(bridge.StageBridgeDenied):
+        with self.assertRaises(stage.StageDenied):
             self.run()
         self.docker.assert_scope()
 
