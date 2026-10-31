@@ -640,3 +640,84 @@ PostgreSQL/migráció és Pi M5 canary továbbra is
 NOT_RUN, M5 RELEASE BLOCKED**.
 A Pi production/staging Docker/DB és az `admin`
 Docker-jogosultsági kockázat változatlan.
+
+
+## 17. FieldWork M5 – valós privát alkalmazás CI-nek előkészített teljes frontendkapu (2026-10-31)
+
+**Cél:** továbblépés az egymást követő, csak részleges és szintetikus M5
+regressziókon: a **teljes eredeti FieldWork frontend** TypeScript,
+ESLint, Vitest és build ellenőrzése GitHub-hosted, izolált futtatóval,
+anélkül hogy a Pi rootful Docker-jogát kibővítenénk vagy a privát
+alkalmazásforrást a nyilvános MCP repositoryba tennénk.
+
+**Ténylegesen elkészült források a fejlesztési GitHub ágon:**
+- `updater/m5_private_frontend_gate.py` – pontos HEAD/forrás/lockfile
+  preflight és postflight ellenőrzés, tracked Vitest tesztfájlkészlet
+  byte-pontos SHA256 leltárral;
+- `.github/actions/m5-private-frontend-gate/action.yml` –
+  külön privát repositoryból meghívható GitHub composite action;
+  Node 22, `npm ci --ignore-scripts`, `npm run typecheck`,
+  `npm run lint`, `npm test -- --reporter=default`,
+  `npm run build` fix sorrendben;
+- `tests/test_m5_private_frontend_gate.py` –
+  valós, de szintetikus git repositorykkal 12 negatív/pozitív
+  CI/admission teszt;
+- `.github/workflows/m5-private-frontend-source-gate.yml` –
+  ARM64/x86-64 GH hosted unit és public-repository STOP acceptance;
+- `docs/M5_PRIVATE_FRONTEND_CI_HU.md` –
+  teljes magyar használati és biztonsági átadási útmutató,
+  privát repositoryba beilleszthető workflow mintával.
+
+**Kapu biztonsági feltételek:** privát repository,
+`github-hosted` ideiglenes runner, pontos 40 karakteres commit SHA,
+tiszta git-munkafa, rögzített `vitest@3.2.7` a package/lockfile
+állományokban, a 4 végrehajtott npm-script pontos tartalma,
+és kötelezően tracked `DocumentViewer.test.tsx`,
+`PhotoGalleryM5.test.tsx`, `PhotoGallery.tsx`.
+A valós FieldWork további `dev` és `test:e2e` scriptjei
+**megengedettek**, nem okoznak hamis elutasítást.
+Az összes `frontend/src/**/*.test.{ts,tsx}` Gitben tracked fájl
+köteles pozitív, pontos számolású Vitest jelentésben megjelenni;
+hiányzó és megváltoztatott forrás STOP. Eredmény csak
+`M5_FULL_PRIVATE_FRONTEND_CI_PASS` lehetséges,
+de még ekkor is `release_authorized=false`,
+`backend_pg_migrations_tested=false`.
+
+**Natív, tényleges bizonyíték:**
+- [Első natív source-gate #41247060146](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41247060146):
+  ARM64 + x86-64 PASS; 12/12 unit/negatív próba platformonként;
+  public GitHub repo composite action feltételezett
+  végrehajtása valóban STOP.
+- A Pi valódi `frontend/package.json` forrása alapján
+  a scriptek szigorú *összes script egyenlősége* kezdetben
+  hibás lett volna (a `dev` és `test:e2e` miatt).
+  Javítás: csak a 4 végrehajtott script pontos egyezése
+  szükséges, többi megtartható.
+- [Javított natív CI #41247209786](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41247209786):
+  ARM64 és x86-64 **PASS**, mindkét naplóban
+  `M5_PRIVATE_SOURCE_GATE_NEGATIVE_AND_POSITIVE_12_PASS`
+  és `M5_PUBLIC_REPOSITORY_FULL_FRONTEND_RUNNER_DENIED_PASS`.
+- A korábbi [Vitest 3.2.7 reporter CI #41246505731](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41246505731)
+  34/34 teszt 6 szintetikus modulban, ARM/x86 2/2 PASS.
+
+**KRITIKUS HATÁR:** a fenti eredmények a privát forráskapu
+konfigurációját, a publikus tiltást és szintetikus Git-teszteket
+igazolják. **NEM futott le a valódi FieldWork M5 teljes
+TypeScript/ESLint/Vitest/build vagy a PostgreSQL migráció a
+privát alkalmazásforráson.**
+Jelenleg a felhasználó GitHub-tárhelyei között nem azonosítható
+önálló privát FieldWork-alkalmazás repository; az MCP GitHub eszköze
+ebben a beszélgetésben nem támogatja új repository létrehozását.
+Az eredeti Pi `/opt/fieldwork` dirty munkafájának biztonságos
+auditálása és privát forrásmentése ezért továbbra is KÜLÖN
+előkészítendő; **sem a public MCP repóba, sem az éles Pi-re
+nem másoltunk alkalmazásforrást**.
+
+**Go/no-go:**
+`M5_PRIVATE_CI_SOURCE_GATE_NATIVE_2_OF_2_PASS`,
+`PUBLIC_REPO_REFUSAL_NATIVE_PASS`,
+`M5_PRIVATE_APP_REPOSITORY_NOT_AVAILABLE`,
+`FULL_FIELDWORK_APP_CI_NOT_RUN`,
+`M5_DEPLOY_BLOCKED`,
+`M6_PARITY_BLOCKED`,
+`PRODUCTION_UNCHANGED`.
