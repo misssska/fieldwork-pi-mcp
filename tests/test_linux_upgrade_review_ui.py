@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import json
+import base64
 from pathlib import Path
 import tempfile
 import threading
@@ -20,6 +21,7 @@ from updater import linux_upgrade_review_ui as ui
 
 NOW = 1793468000
 SECRET = b"only-local-ui-test-hmac-signature-key-super-long"
+OPERATOR_TOKEN = b"local-operator-browser-credential-32bytes-plus"
 BEFORE = "a" * 64
 AFTER = "b" * 64
 COMMIT = "c" * 40
@@ -57,10 +59,12 @@ def running_ui(session):
 
 def http(url, *, method="GET", host=None, origin=None,
          content_type="application/x-www-form-urlencoded",
-         form=None, fetch_site=None):
+         form=None, fetch_site=None, auth=OPERATOR_TOKEN):
     headers = {}
     if host is not None:
         headers["Host"] = host
+    if auth is not None:
+        headers["Authorization"] = "Basic " + base64.b64encode(b"operator:" + auth).decode("ascii")
     if origin is not None:
         headers["Origin"] = origin
     if fetch_site is not None:
@@ -85,7 +89,7 @@ class SessionTests(unittest.TestCase):
         root = Path(self.temp.name)
         root.chmod(0o700)
         self.session = ui.ReviewSession(
-            plan=plan(), local_secret=SECRET, handoff=root,
+            plan=plan(), local_secret=SECRET, operator_token=OPERATOR_TOKEN, handoff=root,
         )
 
     def test_approval_creates_no_overwrite_protected_hmac(self):
@@ -136,7 +140,7 @@ class SessionTests(unittest.TestCase):
         self.session.handoff.chmod(0o755)
         with self.assertRaises(Exception):
             ui.ReviewSession(plan=plan(), local_secret=SECRET,
-                             handoff=self.session.handoff)
+                             operator_token=OPERATOR_TOKEN, handoff=self.session.handoff)
         self.session.handoff.chmod(0o700)
 
     def test_preexisting_path_blocks_handoff(self):
@@ -151,6 +155,33 @@ class SessionTests(unittest.TestCase):
 
 
 class LocalHTTPTests(SessionTests):
+    def test_operator_authentication_required_before_page_or_decision(self):
+        with running_ui(self.session) as base:
+            code, raw, headers = http(base+"/", auth=None)
+            self.assertEqual(code, 401)
+            self.assertNotIn(self.session.csrf.encode(), raw)
+            self.assertIn("WWW-Authenticate", headers)
+            code, raw, _ = http(base+"/", auth=b"incorrect-local-credential-12345")
+            self.assertEqual(code, 401)
+            self.assertNotIn(self.session.csrf.encode(), raw)
+            fields = {"csrf":self.session.csrf,
+                      "fingerprint":self.session.plan.plan_sha256,
+                      "action":"approve"}
+            code, _, _ = http(base+"/decision",method="POST",
+                              origin=base,form=fields,auth=None)
+            self.assertEqual(code,401)
+            code,_,_ = http(base+"/decision",method="POST",
+                              origin=base,form=fields,
+                              auth=b"incorrect-local-credential-12345")
+            self.assertEqual(code,401)
+            self.assertEqual(self.session.state,"PENDING")
+            self.assertEqual(list(self.session.handoff.iterdir()),[])
+
+    def test_session_does_not_reuse_signing_secret_as_browser_password(self):
+        with self.assertRaisesRegex(ui.ReviewDenied,"REVIEW_OPERATOR_AUTH_INVALID"):
+            ui.ReviewSession(plan=plan(),local_secret=SECRET,
+                             operator_token=SECRET,handoff=self.session.handoff)
+
     def test_html_is_local_and_never_exposes_secret_or_mac(self):
         with running_ui(self.session) as base:
             status, data, headers = http(base+"/")
