@@ -71,3 +71,107 @@ Az élő MCP v0.6.1 Python moduljai:
 **Go/no-go:** 2026-10-31: `M15J_CUTOVER_BLOCKED_PROVEN_ROOTFUL_DOCKER`, `M15E_ACTIVATION_BLOCKED`, `PRODUCTION_UNCHANGED`.
 
 Forrás: mért Raspberry Pi terminálkimenetek és az élő FieldWork Pi MCP read-only AST és Docker inventory. Folyamatadatot az MCP saját beszámolója nem igazolhat; a döntés alapja független helyi Linux kernel-/systemd-/Docker mérés volt.
+
+
+## 6. M15-J1/J2 tényleges megvalósítási eredmények (2026-10-31)
+
+**Két új, a valódi Pi-től szigorúan elkülönített fejlesztési eredmény.** Mindkettő
+GitHub Draft PR-en van; egyetlen `/opt/fieldwork`, Docker-, host systemd-
+vagy tunnel-műveletet sem hajtott végre a Raspberry Pi-n.
+
+### J1 – 36/36 MCP-eszköz külön jogosultsági mátrixban
+
+`updater/m15j_exact_mcp_contract.py` rögzíti a távolról ténylegesen
+lekérdezett M12 v0.6.1 **pontosan 36 MCP-eszközét**, valamint a jelenlegi
+`fieldwork_mcp.py`, `stage_manager.py`, `runtime_runner.py` és
+`sandbox_command.py` SHA256-ját. A működési elosztás:
+- `no_docker`: **26** eszköz; saját lokális állapot-/adatkezelés,
+  sem általános Docker API, sem host rootful végrehajtás nem szükséges;
+- `docker_read_proxy`: **5** eszköz; szűkített, csak olvasási Docker-adat;
+- `stage_compose_helper`: **3** eszköz; full test, start, stop.
+  A régi M14-E/M15-G háromkonténeres start/stop **nem elég**;
+- `sandbox_helper`: **2** eszköz; runtime test és sandbox command.
+  Hálózat, opcionális DB, konténerfuttatás, erőforrás-törlés,
+  hiba/replay idempotencia mind szükséges.
+
+`tests/test_m15j_exact_mcp_contract.py` **13** negatív és pozitív tesztje
+érvénytelen toolkatalógus, duplikátum, rossz útvonal,
+forrás-SHA drift, hiányzó shadow-nyugta, hamis PASS és
+hiányzó OS privilege attestation esetén blokkol.
+A teljes 36/36-os szintetikus nyugta **nem ad**
+`cutover_authorized=true` értéket: ez nem
+jogosultság-engedély, csak kompatibilitási ellenőrzés.
+
+[Native ARM64 + x86-64 J1 #41239151975](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41239151975):
+**PASS mindkét architektúrán**.
+
+### J2 – valós Docker konténeréletciklus elkülönített tesztgépen
+
+`updater/m15j_disposable_docker_canary.py` **nem az éles Pi toolja**.
+Egy kizárólag lokális CI-helperből hívható, rögzített
+Docker CLI-argumentumokkal:
+- csak pontos OCI digestből induló, `/bin/true` canary;
+- `--network none`, read-only rootfs, `cap-drop ALL`,
+  `no-new-privileges`, korlátozott CPU, RAM, PID,
+  UID/GID `65534:65534`;
+- sem `--privileged`, host mount, host port, host network,
+  Docker-socket mount, eszközátadás, tetszőleges entrypoint,
+  source- vagy shell-argumentum nincs;
+- `create → (exact container ID+name+label inspect) → start →
+  wait exit 0 → inspect → full ID/owner ellenőrzés → rm --force`;
+- a konténerazonosság megváltozása esetén elutasítja a törlést;
+  meg nem figyelhető Docker-létrehozási válasz/timeout
+  után csak külön helyi admin rendezhet esetleges orphan canary-t,
+  és **soha nem töröl ismeretlen vagy production konténert**.
+
+`tests/test_m15j_disposable_docker_canary.py` **10** szerződéstesztje PASS,
+köztük injection és idegen container ID törléstilalom.
+`.github/workflows/m15j2-disposable-docker-canary.yml`
+**tényleges rootful Docker daemonon, disposable Ubuntu ARM64 és
+x86-64 GitHub hoston** végrehajtja az egészet, majd kizárja a
+maradék `fieldwork-m15j-canary-*` konténert.
+
+[Native real Docker J2 #41239152037](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41239152037):
+**mindkét architektúrán PASS** a 10 teszt, tényleges
+create/start/wait/delete, cleanup = PASS.
+
+[Full security regression #41239152058](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41239152058):
+**879 updater + 12 bootstrap = 891/891 PASS** az
+`54d1ff1e6fb276f935d0a7ffea284cebbe105f36` fejlesztési HEAD-en.
+Minden kapcsolódó M15B/D/E/F/G/H/I CI-kapu is SUCCESS.
+
+**Kritikus limit:** J2 valós canary, de **még nem** az eredeti
+M12 `stage_manager` Compose build/up/full-test/down életciklusa,
+nem a `runtime_runner` hálózatos DB sandboxja, és nem a
+`sandbox_command` tetszőleges (konténeren belüli)
+felhasználói parancsfuttatása. Nincs M12/36 teljes
+shadow parity, külön host user/socket, approval
+redemption integráció vagy no-copy updater aktiválás.
+
+Egy J2 helper rootful Docker sockettel változatlanul
+host root-ekvivalens; a rögzített argv csökkenti
+a támadási felületet, de egy kompromittált Python
+folyamat ellen nem önálló privilege barrier.
+Ennek megoldása a külön UID, kernel-szintű
+korlátozás és a teljes migráció bizonyítása.
+**Tilos most `admin` Docker-csoporttagságot módosítani
+vagy M15-E-t bekapcsolni.**
+
+### M15-J folytatása
+
+A további M15-J2 fejlesztés sorrendje:
+1. A *valódi* M12 staging Compose build/test/start/stop egy
+   megbízható, immutábilis, exact source/image pinelt
+   dedikált helperen, az éles `fieldwork-stage` kontextusától
+   külön, ideiglenes GitHub Linux teszthoston;
+2. a meglévő M12 sandbox teljes network/DB/test/cleanup
+   funkciókiváltása ugyanilyen helperen, ID/label/receipt/
+   crash-recovery/replay ellenőrzésekkel;
+3. teljes 36/36 shadow-parity és csak ezt követően helyi
+   admin által engedélyezett privilege-separated tunnel cutover.
+
+**Állapot:** `M15J1_INVENTORY_PASS`;
+`M15J2_DISPOSABLE_DOCKER_LIFECYCLE_PASS`;
+`M15J_FULL_STAGE_SANDBOX_PARITY_PENDING`;
+`M15E_ACTIVATION_BLOCKED`;
+`PI_PRODUCTION_UNCHANGED`.
