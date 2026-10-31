@@ -49,6 +49,10 @@ LABEL org.fieldwork.appliance.profile="fieldwork-offline-test-appliance-v1" \
 
 ENV PATH="/opt/fieldwork-test-venv/bin:/usr/lib/postgresql/18/bin:/usr/local/bin:/usr/bin:/bin"
 WORKDIR /work
-# No ENTRYPOINT: the approved host runner supplies an exact fixed entrypoint.
-# The host runner MUST use --user, --network=none, read-only root,
-# stage read-only mount, no Docker socket, /work and /tmp tmpfs.
+# Override the inherited upstream postgres entrypoint: accidentally running
+# this image without one exact suite must immediately fail, never start a DB.
+ENTRYPOINT ["/usr/local/bin/fieldwork-test-suite"]
+CMD ["NO_UNAPPROVED_DEFAULT_SUITE"]
+# The approved host runner also sets this exact entrypoint plus --user,
+# --network=none, read-only root, /work and /tmp tmpfs, stage read-only
+# source mount, and NEVER a Docker socket or production volume.
