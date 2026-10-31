@@ -68,7 +68,7 @@ def starttime_from_stat(raw: bytes, expected_pid: int) -> int:
     prefix = str(expected_pid) + " ("
     require(line.startswith(prefix), "HOST_PID_STAT_PID_MISMATCH")
     close = line.rfind(")")
-    require(close > len(prefix) and line[close + 1:close + 3] == "  ",
+    require(close > len(prefix) and line[close + 1:close + 2] == " ",
             "HOST_PID_STAT_FORMAT_DENIED")
     fields = line[close + 2:].split()
     # Field 3 is state, field 22 is starttime => index 19.
