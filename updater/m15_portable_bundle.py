@@ -19,6 +19,8 @@ import sys
 import tarfile
 
 FILES = (
+    "updater/m15_portable_bundle.py",
+    "updater/m15_user_stage.py",
     "updater/linux_telemetry.py",
     "updater/mcp_linux_telemetry.py",
     "updater/linux_upgrade_gate.py",
