@@ -27,6 +27,7 @@ def inspect_tests(transfer_id: str) -> dict:
     inbox._valid_id(transfer_id)
     allowed = runner._config()
     checked = stage.inspect_stage(transfer_id)
+    runner._dependencies(transfer_id, allowed)
     root = Path.home()
     for piece in runner.TESTS_REL.parts:
         root = root / piece
