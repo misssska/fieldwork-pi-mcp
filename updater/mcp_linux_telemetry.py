@@ -13,7 +13,10 @@ import re
 import subprocess
 import time
 
-import linux_telemetry as core
+if __package__:
+    from . import linux_telemetry as core
+else:
+    import linux_telemetry as core
 
 
 DOCKER = "/usr/bin/docker"
