@@ -96,7 +96,7 @@ def transform_mcp(source: bytes) -> bytes:
     names = [n.value for n in ast.walk(tree) if
              isinstance(n, ast.Constant) and
              type(n.value) is str and n.value in NAMES]
-    require(set(names) == NAMES and len(names) == 2 * len(NAMES),
+    require(set(names) == NAMES and len(names) == len(NAMES),
             "MCP_TOOL_REGISTER_AUDIT_COUNT_DENIED")
     return result
 
