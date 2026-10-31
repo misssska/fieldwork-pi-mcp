@@ -213,6 +213,17 @@ class MaterializerTests(unittest.TestCase):
         with self.assertRaisesRegex(q.QualificationDenied, "GIT_UNREVIEWED_PATH_DENIED"):
             stage.materialize_transfer(TID)
 
+    def test_tracked_hidden_config_denied(self):
+        p = self.base / "frontend" / ".npmrc"
+        p.write_bytes(b"//example.local/:_authToken=synthetic")
+        git(self.base, "add", "-f", "frontend/.npmrc")
+        git(self.base, "commit", "-qm", "Unreviewed hidden frontend file")
+        self.add_transfer(base=git(self.base, "rev-parse", "HEAD").decode())
+        with self.assertRaisesRegex(q.QualificationDenied,
+                                    "GIT_TREE_PATH_DENIED"):
+            stage.materialize_transfer(TID)
+        self.assertFalse((self.output_root / TID).exists())
+
     def test_tracked_secret_env_denied(self):
         (self.base / "server" / "app" / ".env").write_bytes(b"SECRET=fake")
         git(self.base, "add", "-f", "server/app/.env")
