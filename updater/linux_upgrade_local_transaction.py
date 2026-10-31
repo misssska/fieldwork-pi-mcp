@@ -58,7 +58,7 @@ def directory(path: Path) -> None:
 def fixed_read(root: Path, name: str) -> bytes | None:
     require(type(name) is str and
             (gate.MODULE.fullmatch(name) is not None or
-             name == RECEIPT), "LOCAL_MODULE_NAME_DENIED")
+             name in {RECEIPT, SOURCE_FILE}), "LOCAL_MODULE_NAME_DENIED")
     directory(root)
     path = root / name
     require(not path.is_symlink(), "LOCAL_MODULE_SYMLINK_DENIED")
@@ -167,6 +167,23 @@ def _journal_read(txn: Path) -> dict:
             type(obj["files"]) is list and
             type(obj["nonce"]) is str,
             "LOCAL_JOURNAL_SCHEMA_DENIED")
+    # Bind the crash-recovery journal to the exact canonical proposal, not
+    # merely to a mutable JSON receipt. This check must precede any restore.
+    plan = fixed_read(txn, SOURCE_FILE)
+    require(plan is not None and len(plan) <= MAX_LEDGER,
+            "LOCAL_ORIGINAL_PLAN_MISSING")
+    try:
+        original_request = json.loads(plan)
+    except (ValueError, UnicodeError) as exc:
+        raise LocalApplyDenied("LOCAL_ORIGINAL_PLAN_INVALID") from exc
+    require(gate.canon(original_request) == plan,
+            "LOCAL_ORIGINAL_PLAN_NONCANONICAL")
+    digest = hashlib.sha256(gate.BIND + b"\\0" +
+                            gate.canon(original_request)).hexdigest()
+    require(digest == obj["plan_sha256"] and
+            original_request.get("host_id") == obj["host_id"] and
+            original_request.get("files") == obj["files"],
+            "LOCAL_JOURNAL_PLAN_BINDING_DENIED")
     return obj
 
 
@@ -217,6 +234,7 @@ def apply_approved(request: dict, policy: gate.HostPolicy,
                    approval: dict, local_secret: bytes,
                    now: int, health_check: Callable[[], bool]) -> dict:
     """Local trusted process only, caller must separately verify release trust."""
+    require(os.geteuid() != 0, "LOCAL_ROOT_EXECUTION_DENIED")
     directory(install_root)
     directory(state_root)
     require(install_root != state_root,
@@ -317,6 +335,7 @@ def recover_unfinished(plan_sha256: str, policy: gate.HostPolicy,
     require(type(plan_sha256) is str and
             gate.HEX64.fullmatch(plan_sha256) is not None,
             "LOCAL_RECOVERY_DIGEST_INVALID")
+    require(os.geteuid() != 0, "LOCAL_ROOT_EXECUTION_DENIED")
     directory(install_root)
     directory(state_root)
     fd = _locked_file(state_root)
