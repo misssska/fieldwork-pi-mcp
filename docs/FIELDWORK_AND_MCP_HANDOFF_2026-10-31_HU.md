@@ -268,3 +268,61 @@ bizonyítására nem volt elég.
 `DOCUMENT_VIEWER_FAIL_PENDING`;
 `M5_STAGING_CUTOVER_BLOCKED`;
 `M6_PARITY_BLOCKED`.
+
+
+## 11. FieldWork app – M5 R3 DocumentViewer tesztstabilizálás és kiadási blokkolók (2026-10-31)
+
+**Elkészült: `FieldWork_M5_R3_DocumentViewer_Test_Gate_20261031.zip`**
+a privát ChatGPT Library **`/FieldWork/`** könyvtárában
+(a feltöltést visszaigazolta az aktuális Library nyugta).
+A megosztható ZIP SHA256:
+`6adfa4328ff05bc0be34d7ae347abd632fb94c03b77adb15c45f1eccf2fb375f`.
+
+**Mi változott az M5 R2-höz képest?**
+
+1. A valódi `DocumentViewer.test.tsx` meglévő, hibára futó tesztje a **teljes globális `URL` konstruktor helyébe objektumot** állított. Az új izolált tesztváltozat megőrzi a konstruktor működését (alapvető jsdom kompatibilitás), csak a `createObjectURL` / `revokeObjectURL` statikus mockokat cseréli és minden teszt után helyreállítja a globális cserét.
+2. A fájlbetöltést külön `waitFor` igazolja, és a kép megjelenése explicit 5 s várakozást kap, így megkülönböztethető a fetch-meghívás hiánya és a React/jsdom renderelési késés. **Ha a kép ténylegesen hiányzik, továbbra is FAIL lesz**, ez nem félrevezető zöldítés.
+3. Az M5 R3 `integrate.py` a külön `stage-v06/parity-m5.*` jelöltbe bármilyen írás előtt ellenőrzi a régi teszt SHA256-ját; az opcionális tesztjavító kizárólag ebben a jelöltben, pontos bájtokból dolgozik. `launch_canary.sh` már a jelölt létrehozása előtt SHA+negatív contract preflightot futtat. Production forrás-/Docker-/DB-módosítás **NEM** történt.
+4. A csomag tartalmazza a teljes M5 R2 idempotencia számláló-/nyugta-javítást, a rögzített M5 migrációs kódot és a régi teszteket. Nem támaszkodik új, távoli kódfeltöltésre a Pi-n.
+
+**Valós bizonyítékok:**
+- Pi MCP `fieldwork_stage_patch` proposal
+  `d0e4d925e4f440edb2ee58644432ea5b`, patch
+  `b8f63033e3506df41630a4d4301f6ef83467cd56dd0a455b6fa6ca5647daa3e7`
+  **SANDBOX_STATIC_PASS**, produkció változatlan.
+- Kiinduló tényleges teszt SHA256:
+  `5e802a79179f9a171ed06160258bab0f31400045f7b615a85fcea37c04d6abef`.
+  Az izolált sandboxból függetlenül visszaolvasott új SHA256:
+  `9a111123e5cb23e74bbe82a2a9d6c033e55e15643d7607222730cb56b4d4ec08`.
+- Csomag 13-fájlos manifest és integritási ellenőrzés:
+  `M5_PACKAGE_INTEGRITY_PASS 13 files`.
+- A Python negatív patch- és forrásvédelmi szerződéspróbák:
+  **4/4 PASS**; `bash -n launch_canary.sh` PASS; Python AST:
+  PASS.
+- A tényleges M5 R2 `photo_comments_api.py` FastAPI
+  TestClient + SQLAlchemy / in-memory SQLite próba
+  **15/15 PASS** újrafuttatva.
+- A frontend valódi `npm ci + typecheck + lint + full Vitest` **NEM
+  FUTHATOTT LE** ebben a futtatási környezetben:
+  a helyi npm registry DNS `EAI_AGAIN`; a Pi MCP
+  `fieldwork_sandbox_command` általános frontend tesztet
+  `PHOTO_SUITE_BACKEND_ONLY` szabállyal blokkolja.
+  Nem állítható, hogy a régi 99/100 FAIL okát sikerült
+  bizonyítani vagy a teljes M5 frontend kaput átvinni.
+
+**Következő kapu (kötelező):** az új M5 R3-at a pinelt
+M4-snapshotból létrehozott külön `parity-m5.*` jelöltben
+kell `npm ci`, TypeScript, ESLint, **összes Vitest**,
+backend/migrációs E2E, `fieldwork-parity-m5`
+18085 canary egészség és UI-átvétel mellett igazolni.
+A telepítőt a jelen körben **nem futtattuk a Pi-n**:
+nem áll rendelkezésre olyan korlátozott MCP tool,
+amely ennek teljes frontend-telepítési workflow-ját
+jóváhagyás és host Docker-kockázat nélkül tudná végrehajtani.
+
+**Kritikus:** a korábbi M5 99/100 `DocumentViewer` FAIL
+továbbra is **NOT_VERIFIED**, M5 deploy **BLOCKED**.
+Az M6 közös TaskEditor és R08 naphoz rendelés
+a teljes M5 PASS-ig szintén **BLOCKED**.
+A Pi production API/staging MCP read-only lekérdezhető;
+az aktuális `main` piszkos munkafáját nem írtuk át.
