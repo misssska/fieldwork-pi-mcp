@@ -147,3 +147,18 @@ változások nem feltétlenül szerepelnek a tracked `main` forrásban.
 **Állapot:** `FIELDWORK_CALENDAR_CANDIDATE_STAGED_STATIC_PASS`;
 `FIELDWORK_UI_TESTS_NOT_RUN`; `STAGE_CUTOVER_NOT_AUTHORIZED`;
 `PRODUCTION_UNCHANGED`.
+
+
+### Független, korlátozott TS parser/type próba (kiegészítés)
+
+A `CalendarView.tsx` pontos sandbox SHA256-jával egyező
+forrást külön, izolált konténeres munkakönyvtárban ellenőriztük:
+`sha256=5770d41460d7294b4f9b9443fccbf089052d7f8842beacf9517a254b3b06607d`.
+A helyi **TypeScript 5.8.3** `transpileModule` parser **0 syntax diagnostic**,
+és az azonos fájl önálló strict `tsc --noEmit`
+fordítása **0 hiba** egy szűk, mesterséges React/FieldworkContext/Task típus-stub
+mellett. Ez **NEM** egyenértékű az alkalmazás függőségeivel
+végrehajtott teljes TypeScript/Vitest/ESLint/CI ellenőrzéssel;
+a tesztfájl Vitest tesztjei továbbra is **NOT_RUN**.
+Az eredmény csak a lefordítható TSX magra ad bizonyítékot,
+nem a referencia-paritásra vagy a működő stagingre.
