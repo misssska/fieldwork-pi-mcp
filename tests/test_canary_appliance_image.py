@@ -5,6 +5,7 @@ Pure CI tests: no Docker image is built and no FieldWork test is executed.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -23,6 +24,7 @@ PINS = {
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "appliance" / "fieldwork-test-suite"
 DOCKERFILE = ROOT / "appliance" / "Dockerfile"
+SCRIPT_SHA = hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
 
 
 def inspected():
@@ -32,6 +34,7 @@ def inspected():
             sut.LABELS["profile"]: runner.PROFILE,
             sut.LABELS["production_access"]: "denied",
             sut.LABELS["scope"]: "isolated-test-only",
+            sut.LABELS["script_sha256"]: SCRIPT_SHA,
             **{sut.LABELS[key]: digest for key, digest in PINS.items()},
         }},
     }]
@@ -43,6 +46,7 @@ class ImageQualificationTests(unittest.TestCase):
             json.dumps(inspected() if obj is None else obj).encode(),
             expected_image_id=image,
             dependency_sha256=PINS if pins is None else pins,
+            expected_script_sha256=SCRIPT_SHA,
             architecture=arch,
         )
 
@@ -77,6 +81,11 @@ class ImageQualificationTests(unittest.TestCase):
     def test_wrong_arch_denied(self):
         self.assertDenied("APPLIANCE_PLATFORM_MISMATCH",
                           lambda x: x[0].__setitem__("Architecture", "amd64"))
+
+    def test_wrong_entrypoint_digest_denied(self):
+        self.assertDenied("APPLIANCE_SCRIPT_SOURCE_DRIFT",
+                          lambda x: x[0]["Config"]["Labels"].__setitem__(
+                              sut.LABELS["script_sha256"], "f" * 64))
 
     def test_non_linux_denied(self):
         self.assertDenied("APPLIANCE_PLATFORM_MISMATCH",
@@ -116,11 +125,13 @@ class ImageQualificationTests(unittest.TestCase):
 
     def test_blank_inspection_denied(self):
         with self.assertRaises(q.QualificationDenied):
-            sut.qualify(b"", expected_image_id=IMAGE, dependency_sha256=PINS)
+            sut.qualify(b"", expected_image_id=IMAGE, dependency_sha256=PINS,
+                        expected_script_sha256=SCRIPT_SHA)
 
     def test_malformed_json_denied(self):
         with self.assertRaisesRegex(q.QualificationDenied, "APPLIANCE_INSPECT_INVALID"):
-            sut.qualify(b"not json", expected_image_id=IMAGE, dependency_sha256=PINS)
+            sut.qualify(b"not json", expected_image_id=IMAGE,
+                            dependency_sha256=PINS, expected_script_sha256=SCRIPT_SHA)
 
     def test_supported_platform_is_explicit(self):
         rec = inspected()
