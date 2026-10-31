@@ -83,3 +83,57 @@ A sikeres `M12_ACTIVATED_READYZ_PASS_DISCOVERY_PENDING`
 után az új három MCP-eszköz jelenlétét ChatGPT felől
 külön ellenőrizzük. Ezt a kódot nem kell kézzel
 beilleszteni a Pi-be, az egyetlen helyi telepítő intézi.
+
+## 2026-10-31 – TÉNYLEGES RASPBERRY PI AKTIVÁLÁS SIKERES
+
+A Pi tulajdonosa az előző fejezetben leírt, pontos SHA256-tal ellenőrzött
+M12-R1 telepítőt **helyileg lefuttatta és jóváhagyta**. A visszaküldött
+hiteles, lokális parancskimenet:
+
+```text
+M12_PREFLIGHT_PASS
+OLD_MCP_SHA256=e0e7cfb7b70c7f79845337b84bb47025beaad6d429377b64d1972db68c3fbc1a
+NEW_MCP_SHA256=ee218971079b988e1e85b3790dd50228847e5e911e2e688b3df77972ad78b532
+NEW_SANDBOX_SHA256=5a4a6ba775f7fd16d0660a654eb3ab8724659ff1ac72fd1427ed3c9eadb797f5
+SCOPE=MCP_SOURCE_AND_SANDBOX_ONLY_PRODUCTION_UNTOUCHED
+M12_ACTIVATED_READYZ_PASS_DISCOVERY_PENDING
+```
+
+**Helyileg sikerült** a két forrásfájl cseréje, az egy új olvasási
+modul telepítése, a meglévő tunnel restart és a lokális readyz.
+A helyi aktiválási ágon a felhasználó explicit
+`ENGEDÉLYEZEM_M12` jóváhagyást adott. Az aktív install
+fájlbájtjait a ChatGPT innen még nem olvasta vissza az új MCP toolokkal:
+az alábbi discovery kapu ettől különbözik.
+
+**ChatGPT oldali csatlakozás ellenőrizve:** a régi FieldWork MCP eszközök
+működnek (`fieldwork_status` válasz, verzió 0.6.1);
+éles `/api/health` és `/health` HTTP 200; stage
+`STAGE_HEALTH_PASS`, a meglévő stage running check megtörtént.
+Az **új három eszköz** viszont az ebben a beszélgetésben
+elérhető Tool Directoryban **még nem jelent meg**:
+`fieldwork_mcp_source_inventory`,
+`fieldwork_mcp_source_review`,
+`fieldwork_mcp_docker_inventory`. A meglévő lista 33 eszközt tartalmaz.
+
+**M12 release két külön státusz:**
+- `LOCAL_PI_ACTIVATION=PASS` a helyi install nyugtája alapján.
+- `CHATGPT_NEW_TOOL_DISCOVERY=PENDING`, nem PASS.
+- `PRODUCTION_API_HEALTH=PASS`,
+  `STAGING_HEALTH=PASS`, régi MCP toolhívások működnek.
+- `M11_HISTORICAL_CLEANUP_RECEIPT` marad a korábbi sikertelen
+  nyugta; nem íródott át.
+
+**Következő művelet:** indítsunk új ChatGPT beszélgetést,
+amelyben a csatlakoztatott FieldWork Pi MCP plugin eszközlistája
+újra felfedezhető, vagy frissítsük a ChatGPT plugin-kapcsolatot
+az alkalmazás felületén (csak ha van tényleges frissítés opció).
+A plugin eltávolítása, új tunnel létrehozása vagy újabb
+SSH-installer futtatása **nem indokolt**.
+
+Az első új MCP eszközfelfedezés után sorban
+`fieldwork_mcp_source_inventory` és
+`fieldwork_mcp_docker_inventory` csak olvasási smoke,
+majd `fieldwork_mcp_source_review` az ellenőrzött
+cleanup-függvényre. Tilos az éles FieldWork vagy Docker
+módosítása felfedezési teszt címén.
