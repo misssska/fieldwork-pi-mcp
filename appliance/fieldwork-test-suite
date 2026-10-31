@@ -95,6 +95,13 @@ export ADMIN_PASSWORD="canary-test-only-password-not-for-production"
 export JWT_SECRET="canary-test-only-jwt-secret-not-for-production"
 export STORAGE_ROOT=/tmp/fieldwork-storage
 mkdir -m 700 /tmp/fieldwork-storage
-# Never run from a production worktree, and never read production .env.
-cd /source/server
-pytest -q
+# The pinned stage is immutable. Work only from an ephemeral copy so
+# pytest (including migration fixtures) can create local cache/artifacts
+# without attempting to write into the read-only source mount.
+# The materializer excludes all .env secrets from stage source.
+mkdir -m 700 /work/server
+cp -R /source/server/. /work/server/
+test ! -e /work/server/.env || exit 71
+cd /work/server
+export PYTHONDONTWRITEBYTECODE=1
+pytest -q -p no:cacheprovider
