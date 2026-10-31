@@ -48,6 +48,10 @@ class TestRunnerTests(unittest.TestCase):
         }))
         pin.chmod(0o600)
         self.pin = pin
+        key = self.home / runner.KEY_REL
+        key.write_bytes(b"opaque-local-attestation-key-0001")
+        self.assertEqual(key.stat().st_size, 32)
+        key.chmod(0o600)
 
     def test_local_policy_needs_exact_pinned_image(self):
         self.assertEqual(runner._config()["image"], IMAGE)
