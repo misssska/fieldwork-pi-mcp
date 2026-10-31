@@ -76,7 +76,7 @@ jobs:
               raw.replace("src/components/PhotoGalleryM5.test.tsx",
                           "src/api/PhotoGalleryM5.test.tsx"),
               raw.replace("Test Files  6 passed (6)", "Test Files  5 passed (6)"),
-              raw + "\\n1 failed\\n",
+              raw + chr(10) + "1 failed" + chr(10),
           ):
               try:
                   verify(broken)
