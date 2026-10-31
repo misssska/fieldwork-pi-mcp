@@ -739,3 +739,57 @@ nem másoltunk alkalmazásforrást**.
 **Ami NEM történt:** a valódi Pi `/opt/fieldwork` fájljairól **nem készült export**, nem keletkezett privát GitHub-repository, nem történt push vagy Pi-host bináris telepítés; ez csak **tesztelt, készen átadható kódmentési eszköz**, nem egy megvalósult app-backup. A Pi-en egyelőre a meglévő MCP `v0.6.1`, production és staging változatlan.
 
 **Következő blokk:** az operátor által biztonságosan elindított lokális read-only snapshot + manifest/secret audit, majd egyetlen privát FieldWork app GitHub-repository és a már elkészült `docs/M5_PRIVATE_FRONTEND_CI_HU.md` teljes frontendkapu. M5 teljes frontend + PostgreSQL E2E **PENDING**, release továbbra is BLOCKED.
+
+
+## 19. PRIVÁT FIELDWORK APP REPOSITORY MOST MÁR LÉTEZIK (2026-10-31, utólagos státusz)
+
+**A korábbi 17–18. pont „nincs privát FieldWork repo” megállapítása
+időközben ELAVULT.**
+
+A GitHub connector valódi `get_repo` + `list_repositories`
+ellenőrzése: **`misssska/fieldwork-app`**, `visibility=private`,
+admin/push hozzáférés. Az induló repo üres volt, és az alábbi
+**csak infrastruktúra-fájlokkal lett előkészítve**:
+- `README.md` – pontos forrásimport-szabályok és blokkolók;
+- `.gitignore` – a `.env`, feltöltések, DB/backup, kulcsok,
+  `node_modules`, `reference/` minta kizárása;
+- `.github/workflows/m5-full-frontend.yml` –
+  GitHub hosted ARM64/x86-64 **privát** frontend teljes CI,
+  a korábban valóban natív CI-ben tesztelt
+  `misssska/fieldwork-pi-mcp/.github/actions/m5-private-frontend-gate@3f0118d9ec119601ab790978bde59950d2df81fa`
+  pontos commitra pinelve.
+  Csak `frontend/**` forrásváltozásra vagy kézi
+  `workflow_dispatch` hívásra indul, hogy a kezdeti
+  *forrás nélküli* repo ne produkáljon félrevezető CI FAIL-t.
+- [Privát alkalmazás release blocker #1](https://github.com/misssska/fieldwork-app/issues/1):
+  read-only forrásexport, secret és eredet audit, Git
+  source receipt, valós M5 frontend CI, backend PostgreSQL
+  és külön M5 canary részletes elfogadási feltételei.
+
+**A Pi teljes forráskódját szándékosan NEM publikáltuk
+az MCP redaktáló olvasatából:** a valódi
+`frontend/package-lock.json` válasz csonkolva
+`[TRUNCATED]` jelzéssel, a `server/app/main.py`,
+`server/app/config.py` és `server/app/auth.py`
+`[REDACTED]` sorokkal érkezik; a
+`frontend/src/data/FieldworkContext.tsx` olvasását
+`PATH_DENIED` tiltotta. Az így felépített forrásfa
+**bizonyítottan sérült lenne**, és nem adható át
+teljes alkalmazás-biztonsági mentésnek.
+A már kész és tesztelt, **lokális read-only Pi exporter**
+`/FieldWork/FieldWork_Private_Source_Snapshot_Package_20261031.zip`
+továbbra is helyi operátori futtatást, titok/eredet
+ellenőrzést és valódi privát forrásimportot igényel;
+az app forrása/DB/production nem módosult.
+
+**Privát repo bootstrap legutolsó commit:**
+`fbbee13503d63aa05a587a08d5e18683318c3429`
+(`main`, utolsó workflow-trigger korrekció).
+A bootstrap **NEM M5 alkalmazásteszt**, és önmagában
+nem snapshot/forrásbackup.
+
+**Tényleges státusz:** `PRIVATE_APP_REPO_READY`;
+`PRIVATE_APP_SOURCE_BACKUP_PENDING`;
+`M5_CI_CONFIGURED_NOT_EXECUTED_ON_REAL_APP`;
+`M5_RELEASE_BLOCKED`;
+`PRODUCTION_AND_STAGE_UNCHANGED`.
