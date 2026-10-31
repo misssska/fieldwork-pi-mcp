@@ -1,0 +1,57 @@
+name: M15E native distinct-UID approval IPC (no install)
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/linux_approval_redeemer.py
+      - updater/linux_upgrade_gate.py
+      - tests/test_linux_approval_redeemer.py
+      - tests/native_m15e_peer_acceptance.py
+      - .github/workflows/m15e-native-approval-ipc.yml
+  pull_request:
+    paths:
+      - updater/linux_approval_redeemer.py
+      - tests/test_linux_approval_redeemer.py
+      - tests/native_m15e_peer_acceptance.py
+      - .github/workflows/m15e-native-approval-ipc.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: m15e-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  approval-ipc:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline unit tests including real same-UID socket rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_linux_approval_redeemer.py' -v
+          python3 -m compileall -q updater/linux_approval_redeemer.py tests/native_m15e_peer_acceptance.py
+      - name: Disposable OS accounts and independent UID acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Only disposable GitHub runner. Never Pi, Docker, tunnel, M12 or FieldWork.
+          sudo groupadd --system m15e-executor
+          sudo useradd --system --gid m15e-executor --no-create-home \
+            --shell /usr/sbin/nologin m15e-operator
+          sudo useradd --system --gid m15e-executor --no-create-home \
+            --shell /usr/sbin/nologin m15e-client
+          export M15E_OPERATOR_UID="$(id -u m15e-operator)"
+          export M15E_EXECUTOR_UID="$(id -u m15e-client)"
+          export M15E_EXECUTOR_GID="$(getent group m15e-executor | cut -d: -f3)"
+          test "$M15E_OPERATOR_UID" != "$M15E_EXECUTOR_UID"
+          sudo --preserve-env=M15E_OPERATOR_UID,M15E_EXECUTOR_UID,M15E_EXECUTOR_GID,GITHUB_ACTIONS,GITHUB_WORKSPACE \
+            /usr/bin/python3 -s tests/native_m15e_peer_acceptance.py
+          echo M15E_NATIVE_NO_PI_INSTALL_NO_DOCKER_PASS
