@@ -1,0 +1,40 @@
+name: M13 native Linux ARM64 procfs telemetry
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/linux_telemetry.py
+      - updater/mcp_linux_telemetry.py
+      - tests/test_linux_telemetry.py
+      - tests/test_mcp_linux_telemetry.py
+      - .github/workflows/m13-arm64-native.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: m13-arm64-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run ARM64 native pure Linux telemetry unit cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          test "$(id -u)" -ne 0
+          python3 -m unittest discover -s tests -p 'test_linux_telemetry.py' -v
+          python3 - <<'PY'
+          from updater import mcp_linux_telemetry as m
+          host = m.host_metrics({})
+          assert host["status"] == "READ_ONLY_LINUX_HOST_METRICS"
+          assert 0 <= host["cpu_busy_pct"] <= 100
+          assert host["memory"]["total_kib"] >= host["memory"]["available_kib"] > 0
+          assert host["load"]["load_1min"] >= 0
+          assert host["write_performed"] is False
+          print("M13_ARM64_LIVE_PROCFS_READONLY_PASS")
+          PY
