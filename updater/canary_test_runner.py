@@ -185,6 +185,17 @@ def _run_docker(argv: list[str], timeout: int) -> tuple[bool, str]:
     typically removes a completed container, but an interrupted Docker CLI
     can leave a container behind: inspect manually before retrying.
     """
+    q.require(type(argv) is list and len(argv) >= 5, "DOCKER_ARGV_INVALID")
+    name = argv[argv.index("--name") + 1] if "--name" in argv else ""
+    match = re.fullmatch(r"fw-canary-([a-f0-9]{32})-([0-4])", name)
+    q.require(match is not None, "DOCKER_CONTAINER_NAME_INVALID")
+    tid, phase = match.groups()
+    suite, image = argv[-1], argv[-2]
+    q.require(suite in SUITES and str(SUITES.index(suite)) == phase and
+              type(timeout) is int and timeout == TIME_LIMIT[suite] and
+              image == _config()["image"] and
+              argv == _command(tid, suite, image),
+              "DOCKER_ARGV_NOT_FIXED_PROFILE")
     try:
         proc = subprocess.run(argv, stdin=subprocess.DEVNULL,
                               stdout=subprocess.DEVNULL,
