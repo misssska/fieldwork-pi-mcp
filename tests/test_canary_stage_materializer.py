@@ -51,6 +51,13 @@ class MaterializerTests(unittest.TestCase):
         (self.base / "server" / "app").mkdir(parents=True)
         # Empty tracked Python modules are valid and must stay empty.
         (self.base / "server" / "app" / "__init__.py").write_bytes(b"")
+        (self.base / ".gitignore").write_bytes(b".env\\n")
+        (self.base / "README.md").write_bytes(b"# FieldWork\\n")
+        workflow = self.base / ".github" / "workflows" / "backend-tests.yml"
+        workflow.parent.mkdir(parents=True)
+        workflow.write_bytes(b"name: CI\\n")
+        (self.base / "docs").mkdir()
+        (self.base / "docs" / "PROGRESS.md").write_bytes(b"not included in runtime snapshot\\n")
         git(self.base, "add", ".")
         git(self.base, "commit", "-qm", "Trusted separate base")
         self.commit = git(self.base, "rev-parse", "HEAD").decode()
@@ -76,6 +83,10 @@ class MaterializerTests(unittest.TestCase):
         self.assertEqual((work / EXISTING).read_bytes(), NEW)
         self.assertEqual((work / ADDED).read_bytes(), ADD)
         self.assertEqual((work / "server/app/__init__.py").read_bytes(), b"")
+        self.assertFalse((work / ".github").exists())
+        self.assertFalse((work / ".gitignore").exists())
+        self.assertFalse((work / "README.md").exists())
+        self.assertFalse((work / "docs").exists())
         self.assertEqual((self.base / EXISTING).read_bytes(), OLD)
         self.assertFalse((self.base / ADDED).exists())
         self.assertEqual(inbox.status(TID)["status"], "VERIFIED")
@@ -177,6 +188,32 @@ class MaterializerTests(unittest.TestCase):
                                     "GIT_TREE_SPECIAL_FILE_DENIED"):
             stage.materialize_transfer(TID)
         self.assertFalse((self.output_root / TID).exists())
+
+    def test_metadata_git_symlink_still_denied(self):
+        p = self.base / ".github" / "workflows" / "backend-tests.yml"
+        p.unlink()
+        p.symlink_to("/etc/passwd")
+        git(self.base, "add", ".")
+        git(self.base, "commit", "-qm", "Unsafe metadata symlink")
+        self.add_transfer(base=git(self.base, "rev-parse", "HEAD").decode())
+        with self.assertRaisesRegex(q.QualificationDenied, "GIT_TREE_SPECIAL_FILE_DENIED"):
+            stage.materialize_transfer(TID)
+
+    def test_unreviewed_root_path_denied(self):
+        (self.base / "unknown-config.txt").write_bytes(b"unreviewed")
+        git(self.base, "add", ".")
+        git(self.base, "commit", "-qm", "Unknown root path")
+        self.add_transfer(base=git(self.base, "rev-parse", "HEAD").decode())
+        with self.assertRaisesRegex(q.QualificationDenied, "GIT_UNREVIEWED_PATH_DENIED"):
+            stage.materialize_transfer(TID)
+
+    def test_tracked_secret_env_denied(self):
+        (self.base / "server" / "app" / ".env").write_bytes(b"SECRET=fake")
+        git(self.base, "add", "-f", "server/app/.env")
+        git(self.base, "commit", "-qm", "Sensitive tracked env")
+        self.add_transfer(base=git(self.base, "rev-parse", "HEAD").decode())
+        with self.assertRaisesRegex(q.QualificationDenied, "GIT_TREE_PATH_DENIED"):
+            stage.materialize_transfer(TID)
 
     def test_archive_with_secret_path_is_denied(self):
         self.assertFalse(stage._segments is None)
