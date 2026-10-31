@@ -145,6 +145,11 @@ def main(argv=None) -> int:
             review.ReviewDenied,OperatorServiceDenied,OSError) as exc:
         detail = str(exc)
         code = detail if detail.isascii() and detail.replace("_","").isalnum() and detail.isupper() else type(exc).__name__
+        # Only a numeric OS error code may be logged; do not expose private
+        # file paths, HMAC keys or authentication details in journalctl.
+        if isinstance(exc, OSError):
+            code = ("OSError_ERRNO_" + str(exc.errno)
+                    if type(exc.errno) is int else "OSError_ERRNO_UNKNOWN")
         print("M14C_SERVICE_STOP="+code,file=sys.stderr)
         return 2
 
