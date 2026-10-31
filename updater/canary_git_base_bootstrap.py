@@ -79,10 +79,16 @@ def _invoke(argv: list[str], *, max_bytes: int = MAX_GIT_LIST,
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             env=_env(), close_fds=True)
         assert p.stdout is not None
-        out = p.stdout.read(max_bytes + 1)
+        with p.stdout:
+            out = p.stdout.read(max_bytes + 1)
         if len(out) > max_bytes:
             p.kill()
-        rc = p.wait(timeout=timeout)
+        try:
+            rc = p.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait(timeout=5)
+            raise q.QualificationDenied("GIT_PROCESS_TIMEOUT")
     except (OSError, subprocess.SubprocessError) as exc:
         raise q.QualificationDenied("PINNED_GIT_OPERATION_FAILED") from exc
     q.require(rc == 0 and len(out) <= max_bytes, "PINNED_GIT_OPERATION_DENIED")
@@ -186,6 +192,12 @@ def bootstrap(expected_commit: str, approved: str) -> dict:
         _invoke(_git_args(work, "checkout", "--detach", expected_commit),
                 max_bytes=64_000)
         _invoke(_git_args(work, "remote", "remove", "origin"), max_bytes=64_000)
+        # Clone creates the worktree with default umask (often 0755).
+        # Enforce privacy before the private checkout becomes visible.
+        work.chmod(0o700)
+        (work / ".git").chmod(0o700)
+        _safe_dir(work, private=True)
+        _safe_dir(work / ".git", private=True)
         q.require(_head(work) == expected_commit, "PRIVATE_BASE_HEAD_DRIFT")
         q.require(_invoke(_git_args(work, "status", "--porcelain=v1",
                                     "--untracked-files=all"), max_bytes=64_000) == b"",
