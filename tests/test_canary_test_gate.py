@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 import os
 import tempfile
@@ -33,18 +34,27 @@ class TestGate(unittest.TestCase):
         self.home_patch = patch.object(Path, "home", return_value=self.home)
         self.home_patch.start()
         self.addCleanup(self.home_patch.stop)
+        stage_root = self.home / inbox.STATE.parent / stage.STAGE_NAME / TID
+        stage_root.mkdir(parents=True, mode=0o700)
+        deps = {}
+        for key, relative in runner.DEPENDENCY_FILES.items():
+            blob = (key + "\n").encode()
+            path = stage_root / relative
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            path.write_bytes(blob)
+            path.chmod(0o600)
+            deps[key] = hashlib.sha256(blob).hexdigest()
         p = self.home / runner.PIN_REL
         p.parent.mkdir(parents=True, mode=0o700)
         p.write_text(json.dumps({
             "schema": 1, "profile": runner.PROFILE, "image": IMAGE,
             "stage_testing_only": True, "locally_approved": True,
+            **deps,
         }))
         p.chmod(0o600)
         key = self.home / runner.KEY_REL
         key.write_bytes(KEY)
         key.chmod(0o600)
-        stage_root = self.home / inbox.STATE.parent / stage.STAGE_NAME / TID
-        stage_root.mkdir(parents=True, mode=0o700)
 
     def run_mock(self):
         with patch.object(stage, "inspect_stage", return_value=SNAPSHOT), \
