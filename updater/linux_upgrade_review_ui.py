@@ -21,6 +21,7 @@ import os
 from pathlib import Path
 import secrets
 import stat
+import tempfile
 import threading
 import time
 from urllib.parse import parse_qs
@@ -42,6 +43,36 @@ class ReviewDenied(ValueError):
 def require(ok: bool, reason: str) -> None:
     if not ok:
         raise ReviewDenied(reason)
+
+
+def _write_approval(handoff: Path, plan_sha256: str,
+                    approval: dict) -> None:
+    """Atomic, no-overwrite, exact-plan private handoff; never a shell script."""
+    local.directory(handoff)
+    require(type(plan_sha256) is str and
+            gate.HEX64.fullmatch(plan_sha256) is not None,
+            "REVIEW_HANDOFF_ID_DENIED")
+    target = handoff / (plan_sha256 + ".json")
+    require(not target.exists() and not target.is_symlink(),
+            "REVIEW_HANDOFF_COLLISION")
+    payload = gate.canon(approval)
+    require(0 < len(payload) <= 4096, "REVIEW_HANDOFF_SIZE_DENIED")
+    fd, tmp_name = tempfile.mkstemp(prefix=".approval-", dir=handoff)
+    temporary = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(0o600)
+        try:
+            os.link(temporary, target, follow_symlinks=False)
+        except FileExistsError as exc:
+            raise ReviewDenied("REVIEW_HANDOFF_COLLISION") from exc
+        local.sync(handoff)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 @dataclass
@@ -77,12 +108,7 @@ class ReviewSession:
                 operator_present=True, now=now)
             # File name is derived exclusively from a validated SHA256;
             # no request-body-selected path or script can be passed.
-            name = self.plan.plan_sha256 + ".json"
-            require(not (self.handoff / name).exists() and
-                    not (self.handoff / name).is_symlink(),
-                    "REVIEW_HANDOFF_COLLISION")
-            local.write_atomic(
-                self.handoff, name, gate.canon(approval), create=True)
+            _write_approval(self.handoff, self.plan.plan_sha256, approval)
             self.state = "APPROVED"
             return {
                 "status": "LOCALLY_APPROVED_HANDOFF_PENDING",
