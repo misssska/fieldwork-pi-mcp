@@ -86,3 +86,20 @@ jobs:
           test "$(docker container inspect --format '{{.State.Status}}' "$one")" = created
           test "$(docker container inspect --format '{{.State.Status}}' "$two")" = created
           echo "M10_AUDITOR_DID_NOT_MUTATE_CONTAINERS_PASS"
+          # Execute the exact one-shot operator CLI, not just an imported
+          # function. Its pinned historical run cannot match our synthetic IDs.
+          python3 updater/pi_sandbox_orphan_audit.py > "$RUNNER_TEMP/m10-cli-result.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from updater.pi_sandbox_orphan_audit import HISTORICAL_FAILED_RUN
+          data = json.loads((Path(os.environ["RUNNER_TEMP"]) / "m10-cli-result.json").read_text())
+          assert data["run_id"] == HISTORICAL_FAILED_RUN
+          assert data["candidate_count"] == 0
+          assert data["status"] == "HISTORICAL_CLEANUP_UNVERIFIED_NO_EXACT_MATCH"
+          assert data["historical_cleanup_receipt_resolved"] is False
+          assert data["sandbox_test_retry_authorized"] is False
+          assert data["container_removal_authorized"] is False
+          print("M10_ONE_SHOT_CLI_REAL_DOCKER_FAIL_CLOSED_PASS")
+          PY
