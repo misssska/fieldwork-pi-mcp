@@ -193,3 +193,26 @@ rollback egyszerű Git revert. Bármilyen későbbi
 telepítéshez a pontos telepített MCP-forráshash,
 helyi jóváhagyás, atomikus backup, health-gate
 és automatikus rollback kell.
+
+## M13 kódvalidáció – első ellenőrzött alap
+
+A `updater/linux_telemetry.py` és a
+`tests/test_linux_telemetry.py` első változatainál
+az offline teszt megtalált egy hordozhatósági hibát:
+`type(root) is Path` Linuxon `PosixPath` esetén
+tévesen false. Ezt `isinstance(root, Path)` ellenőrzésre
+javítottuk; a `/proc/stat` felső beolvasási határát
+256 KiB-ra emeltük nagyobb magszámú szerverekhez.
+A negatív API-ellenőrzés a megjegyzésekben előforduló,
+de nem meghívott `sudo` szót sem tekinti végrehajtásnak.
+
+A [CI #41215604196](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41215604196)
+**555 updater + 12 bootstrap = 567/567 PASS**, Python
+compile PASS; a CI GitHub Linux x86_64,
+**nem** Raspberry Pi vagy Orange Pi.
+A korábbi fejlesztői CI próbák PASS-ig javításra kerültek,
+nem rejtettük el őket.
+
+A kód továbbra is **csak új, offline telemetria alap**,
+nem regisztrált MCP eszköz és nem változtatott
+a 6 futó Pi Docker konténeren.
