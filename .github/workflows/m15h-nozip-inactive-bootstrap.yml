@@ -57,6 +57,24 @@ jobs:
           print("M15H_PINNED_NOZIP_OFFLINE_RECONSTRUCTION_PASS")
           print("M15H_TEST_ARCHIVE_SHA256="+sha)
           PY
+      - name: Retrieve real GitHub commit files with fixed URL and verify offline archive SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from updater import m15_portable_bundle as bundle
+          from updater import m15h_pinned_nozip_bootstrap as h
+          commit=os.environ["GITHUB_SHA"]
+          files=bundle.collect(Path(os.environ["GITHUB_WORKSPACE"]))
+          expected=bundle.make_archive(files,source_commit=commit)
+          original_sha=bundle.sha(expected)
+          fetched=h.acquire_verified_archive(
+              commit=commit,trusted_sha256=original_sha)
+          assert fetched == expected
+          print("M15H_REAL_PINNED_GITHUB_NOZIP_HTTPS_FETCH_PASS")
+          PY
       - name: Only disposable runner root-owned inactive install and exact rollback
         shell: bash
         run: |
