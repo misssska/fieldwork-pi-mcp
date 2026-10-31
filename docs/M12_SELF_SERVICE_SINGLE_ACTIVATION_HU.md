@@ -1,3 +1,14 @@
+# ELAVULT – EZT A TELEPÍTÉSI PARANCSOT NE FUTTASD!
+
+Az eredeti M12 telepítő a Pi-n `M12_STOP=SelfServiceOverlayDenied`
+hibával, még az aktiválás előtt leállt.
+A forráskritérium javítása és az új, SHA256-pinnelt parancs:
+[M12-R1 recovery](M12_R1_ONE_SHOT_RECOVERY_HU.md).
+Az alábbi szöveg csak történeti bizonyíték, nem aktuális
+telepítési útmutató.
+
+---
+
 # M12 – Egyszeri FieldWork MCP önkiszolgáló bővítés
 
 **Kiadási jelölt:** commit `b84e34f256b7e1dc1111c10eb10f17dd701a1680`.
