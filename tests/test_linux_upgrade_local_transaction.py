@@ -251,6 +251,37 @@ class LocalTransactionTests(unittest.TestCase):
                     health_check=lambda: True)
             self.assertNotEqual((install/"fieldwork_mcp.py").read_bytes(), OLD)
 
+    def test_restore_preflights_later_foreign_change_before_any_write(self):
+        with tempfile.TemporaryDirectory() as td:
+            install, state, policy, request, approval = self.prepare(Path(td))
+            plan = gate.validate_plan(
+                request, policy, {"fieldwork_mcp.py": sha(OLD),
+                                  "linux_telemetry.py": None}, NOW)
+            folder = state / plan.plan_sha256
+            folder.mkdir(mode=0o700)
+            tx.write_atomic(folder, "fieldwork_mcp.py", OLD, create=True)
+            tx.write_atomic(folder, "plan.json", gate.canon(request), create=True)
+            tx._receipt(folder, {
+                "status": "APPLYING", "host_id": HOST,
+                "plan_sha256": plan.plan_sha256,
+                "files": [dict(x) for x in plan.files],
+                "nonce": approval["nonce"], "production_modified": False,
+            }, create=True)
+            tx.write_atomic(install, "fieldwork_mcp.py", NEW)
+            unrelated = b"def unrelated():\\n    return 9999\\n"
+            tx.write_atomic(install, "linux_telemetry.py", unrelated,
+                            create=True)
+            with self.assertRaisesRegex(
+                    tx.LocalApplyDenied, "LOCAL_RESTORE_UNEXPECTED_CREATE"):
+                tx.recover_unfinished(
+                    plan.plan_sha256, policy,
+                    install_root=install, state_root=state,
+                    health_check=lambda: True)
+            # The previously checked first file MUST remain unchanged:
+            # the rollback itself cannot create a new partial state.
+            self.assertEqual((install/"fieldwork_mcp.py").read_bytes(), NEW)
+            self.assertEqual((install/"linux_telemetry.py").read_bytes(), unrelated)
+
     def test_recovery_rejects_tampered_journal_manifest_binding(self):
         with tempfile.TemporaryDirectory() as td:
             install, state, policy, request, approval = self.prepare(Path(td))
