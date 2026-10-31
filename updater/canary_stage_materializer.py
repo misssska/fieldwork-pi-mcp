@@ -64,7 +64,7 @@ def _tree(repo: Path, sha: str) -> list[tuple[str, str, int]]:
     for record in entries:
         try:
             header, path_bytes = record.split(b"\t", 1)
-            mode, kind, object_id, size_text = header.decode("ascii").split(" ")
+            mode, kind, object_id, size_text = header.decode("ascii").split()
             path = path_bytes.decode("utf-8", "strict")
             size = int(size_text)
         except (ValueError, UnicodeError) as exc:
@@ -77,7 +77,7 @@ def _tree(repo: Path, sha: str) -> list[tuple[str, str, int]]:
         q.require(mode in ("100644", "100755") and kind == "blob" and
                   HEX40.fullmatch(object_id) is not None,
                   "GIT_TREE_SPECIAL_FILE_DENIED")
-        q.require(0 < size <= MAX_TREE_BLOB, "GIT_TREE_FILE_SIZE_DENIED")
+        q.require(0 <= size <= MAX_TREE_BLOB, "GIT_TREE_FILE_SIZE_DENIED")
         total += size
         q.require(total <= MAX_TREE_BYTES, "GIT_TREE_TOTAL_SIZE_DENIED")
         result.append((path, object_id, size))
