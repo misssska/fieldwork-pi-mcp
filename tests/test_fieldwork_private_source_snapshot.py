@@ -89,7 +89,7 @@ class ExportTests(unittest.TestCase):
             m.export(self.root,self.destination)
 
     def test_no_git_push_or_index_write_contract(self):
-        text=Path('/mnt/data/fieldwork_private_source_snapshot.py').read_text()
+        text=(Path(__file__).resolve().parents[1] / 'updater' / 'fieldwork_private_source_snapshot.py').read_text()
         self.assertNotIn("('push'",text)
         with self.assertRaisesRegex(m.SnapshotDenied,'GIT_COMMAND_DENIED'):
             m.command(self.root,('push',))
