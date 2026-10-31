@@ -1,0 +1,63 @@
+name: M15I local root read-only privilege audit (disposable hosts only)
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/m15i_local_privilege_audit.py
+      - updater/linux_m15f_host_boundary_audit.py
+      - updater/linux_host_privilege_preflight.py
+      - tests/test_m15i_local_privilege_audit.py
+      - .github/workflows/m15i-local-host-audit.yml
+  pull_request:
+    paths:
+      - updater/m15i_local_privilege_audit.py
+      - updater/linux_m15f_host_boundary_audit.py
+      - updater/linux_host_privilege_preflight.py
+      - tests/test_m15i_local_privilege_audit.py
+      - .github/workflows/m15i-local-host-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m15i-host-audit-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  isolated-root-audit:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate hostile data cases and Python syntax as nonroot
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_m15i_local_privilege_audit.py' -v
+          python3 -m compileall -q updater/m15i_local_privilege_audit.py
+          if python3 -m updater.m15i_local_privilege_audit --audit; then
+            echo 'ERROR: nonroot audit unexpectedly accepted'; exit 1
+          else
+            echo M15I_NONROOT_DENIAL_PASS
+          fi
+      - name: Real Linux kernel root read-only process and systemd evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo python3 -m updater.m15i_local_privilege_audit --audit > "$RUNNER_TEMP/m15i.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          r=json.loads(Path(os.environ["RUNNER_TEMP"]+"/m15i.json").read_text())
+          assert r["status"]=="M15I_HOST_PRIVILEGE_EVIDENCE_INCOMPLETE"
+          assert r["safe_to_revoke_legacy_docker_access"] is False
+          assert r["safe_to_install_operator_secret"] is False
+          assert r["safe_to_activate_service"] is False
+          assert r["production_services_mutated"] is False
+          assert r["intentional_host_writes"] is False
+          assert len(r["fixed_systemd_units"]) == 3
+          print("M15I_DISPOSABLE_NATIVE_ROOT_READONLY_EVIDENCE_PASS")
+          print("M15I_NO_REAL_PI_HOST_AUDIT_OR_CUTOVER")
+          PY
