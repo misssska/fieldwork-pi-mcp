@@ -81,3 +81,55 @@ tunnel-/Docker-indítás.
    valós Pi-integráció **még blokkolt**.
 
 A PR #2 marad `draft`. **Production deploy nincs.**
+
+
+## 2026-10-31 – új Pi-diagnosztika: tesztadatbázis-kapu és időkorlát
+
+A korábbi „egyéb URL-feltétel eltérésének oka nem bizonyított”
+megállapítás már elavult; a következő futások ezt pontosították.
+
+- A `configure_test_database()` futása az eredetileg kapott
+  `FIELDWORK_TEST_DATABASE_URL` hiányán állt meg.
+- A `TEST_DATABASE_URL` a sandboxban jelen volt, a cél `test-db`,
+  adatbázis `fieldwork_test`, a szükséges `FIELDWORK_TESTING=1`
+  beállítás megvolt.
+- A teszt URL változtatás nélküli átmásolása önmagában nem elegendő,
+  ha az általános `DATABASE_URL` ugyanarra az adatbázisra mutat:
+  a FieldWork biztonsági kapuja az azonos app-/test URL-t
+  **helyesen, szándékosan tiltja**.
+- Az egyik izolált Pi próbában csak a tesztfolyamat környezetében
+  `FIELDWORK_TEST_DATABASE_URL` létrehozása és az általános
+  `DATABASE_URL` eltávolítása után az **eredeti,
+  módosítatlan `configure_test_database()` PASS** lett.
+  Nem kapcsoltuk ki a védelmet, production környezet nem változott.
+- A teljes `pytest` ezután `test_admin_rotation.py` importálásán
+  állt meg; az éles munkakönyvtárban ez a tesztfájl
+  **módosított, nem commitolt**. Emiatt nincs teljes backend PASS.
+- Az ezt követő két, `test_admin_rotation.py` kizárásával
+  indított sandboxpróba időkorlátba ütközött. Az egyik
+  `RUNTIME_CLEANUP_FAILED` nyugtát adott
+  (`test_container cleanup ok=false`), a másik
+  `RUNTIME_FAILED`/ `DOCKER_TIMEOUT`, utóbbinál az
+  explicit cleanup-jelzők true értékűek.
+
+**Biztonsági blokk:** az egyszeri `cleanup ok=false` miatt az
+esetleg megmaradt korábbi tesztkonténer hostoldali állapota nem
+igazoltan rendezett. Ugyanazon a Pi MCP-útvonalon újabb
+teljes tesztet vagy buildet nem szabad elindítani
+a hostoldali orphan-container/erőforrás audit és explicit
+cleanup PASS előtt. A teljes M9 release readiness marad BLOCKED.
+
+A GitHub-jelöltben közben javítva:
+`appliance/fieldwork-test-suite` most pontosan
+`FIELDWORK_TEST_DATABASE_URL` változót állít be,
+és az örökölt `DATABASE_URL` változó jelenlétét
+fail-closed elutasítja; nem ír felül éles adatbázis-URL-t.
+A szintetikus ARM64 CI ezt a szerződést is ellenőrzi.
+A meglévő `updater/sandbox_db_env.py` külön, tiszta
+tesztkörnyezetet építő validátorként az aktív Pi-futtatóba
+még nem lett bekötve.
+
+**A korábbi, sikeres szintetikus #41202296664 workflow az
+akkori Dockerfile- és belépőverziót igazolja, nem az új
+adatbázis-kapu javított verzióját.** Az új ARM64 workflow
+eredményét külön futási azonosítóval kell értékelni.
