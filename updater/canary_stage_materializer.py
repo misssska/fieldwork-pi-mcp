@@ -47,6 +47,42 @@ def _segments(path: str) -> tuple[str, ...]:
     return parts
 
 
+# File categories not required for the isolated source test snapshot.
+# They are listed by Git, validated for unsafe object mode, and then OMITTED.
+# Do not copy repository-maintenance workflows into the test filesystem.
+OMIT_TOP_LEVEL = frozenset({"docs", "reference"})
+OMIT_EXACT = frozenset({".gitignore", ".gitattributes", ".editorconfig",
+                       "README.md", "LICENSE", "LICENSE.md"})
+INCLUDE_TOP_LEVEL = frozenset({"frontend", "server", "nginx", "scripts"})
+INCLUDE_ROOT = frozenset({"docker-compose.yml", "docker-compose.test.yml",
+                          "docker-compose.override.yml", "docker-compose.e2e.yml"})
+
+
+def _source_policy(path: str) -> str:
+    """Return INCLUDE or OMIT only for explicitly known, inert Git metadata.
+
+    Unknown paths and potential secrets fail closed, rather than silently
+    disappearing from a release. All Git object modes are checked separately
+    even when an allowed metadata file is omitted.
+    """
+    q.require(type(path) is str and len(path) < 300 and
+              "\x00" not in path and "\\" not in path,
+              "GIT_TREE_PATH_INVALID")
+    if path.startswith(".github/") and len(path.split("/")) >= 3:
+        return "OMIT"
+    if path in OMIT_EXACT or any(
+        path.startswith(name + "/") for name in OMIT_TOP_LEVEL
+    ):
+        return "OMIT"
+    if path in INCLUDE_ROOT:
+        return "INCLUDE"
+    if path.split("/")[0] in INCLUDE_TOP_LEVEL:
+        _segments(path)
+        return "INCLUDE"
+    # Hidden secrets, unexpected root files, unknown future subtrees.
+    raise q.QualificationDenied("GIT_UNREVIEWED_PATH_DENIED")
+
+
 def _tree(repo: Path, sha: str) -> list[tuple[str, str, int]]:
     """List exact regular blobs without traversing the worktree."""
     q.require(type(sha) is str and HEX40.fullmatch(sha) is not None,
@@ -70,19 +106,21 @@ def _tree(repo: Path, sha: str) -> list[tuple[str, str, int]]:
             size = int(size_text)
         except (ValueError, UnicodeError) as exc:
             raise q.QualificationDenied("GIT_TREE_RECORD_INVALID") from exc
-        _segments(path)
         q.require(path not in seen, "DUPLICATE_GIT_TREE_PATH")
         seen.add(path)
-        # Staging scripts may be tracked executable, but ALL staged content is
-        # written 0600. Symlinks, gitlinks, devices and trees are denied.
+        # Validate object type BEFORE metadata omission: never hide symlinks
+        # or submodules behind an ignored folder.
         q.require(mode in ("100644", "100755") and kind == "blob" and
                   HEX40.fullmatch(object_id) is not None,
                   "GIT_TREE_SPECIAL_FILE_DENIED")
+        decision = _source_policy(path)
+        if decision == "OMIT":
+            continue
         q.require(0 <= size <= MAX_TREE_BLOB, "GIT_TREE_FILE_SIZE_DENIED")
         total += size
         q.require(total <= MAX_TREE_BYTES, "GIT_TREE_TOTAL_SIZE_DENIED")
         result.append((path, object_id, size))
-    q.require([p for p, _, _ in result] == sorted(seen),
+    q.require([p for p, _, _ in result] == sorted(p for p, _, _ in result),
               "GIT_TREE_ORDER_DENIED")
     return result
 
