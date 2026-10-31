@@ -29,3 +29,5 @@ jobs:
         run: sha256sum updater/mcp_self_diagnostics.py updater/mcp_self_service_overlay.py updater/sandbox_cleanup_overlay.py
       - name: Print one-time self-service M12 installer SHA256
         run: sha256sum updater/mcp_self_service_activate.py
+      - name: Print M13 Linux MCP telemetry and overlay SHA256 pins
+        run: sha256sum updater/linux_telemetry.py updater/mcp_linux_telemetry.py updater/mcp_linux_telemetry_overlay.py
