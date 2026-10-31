@@ -288,3 +288,95 @@ kitakaró** AST-vizsgálat a 75–169. sor control flow-járól,
 subprocess timeout és kivétel-/finally-ágak sorrendjéről. Ebből
 levezethető minimális javítás, rollback terv és negatív teszt.
 **Nem telepítendő** változás a bizonyított gyökérok előtt.
+
+## 2026-10-31 – M11: telepített sandbox_command.py valós cleanup-ág elemzése
+
+A felhasználó a korábban rögzített
+`sandbox_command.py` SHA256
+`5255968dac5c0bb8ac3a94eb72f3131ea2081b683974d97db6bb9ddc3d432615`
+egyezését ismét ellenőrizte, majd megosztotta a Python AST által
+kitakart `_docker_args`, `command_status`, `run_command` függvényeket.
+A vizsgálat `SOURCE_SHA256_VERIFIED` /
+`READ_ONLY_CONTROL_FLOW_AUDIT_PASS` eredménnyel zárult.
+Ez a megelőző szakaszban függőben lévő forrásvizsgálatot feloldja.
+
+### Bizonyított vezérlési logika
+
+Az eredeti `run_command` 75–169. sorában:
+
+1. `attempted=True` beállítás után
+   `r._run(_docker_args(...), timeout=r.MAX_SECONDS,
+   output_limit=16000)` fut; siker esetén
+   `SANDBOX_COMMAND_PASS`, ellenkező esetben
+   `SANDBOX_COMMAND_FAIL`.
+2. A legkülső `except Exception` az ismert
+   `ValueError` szövegét, más kivételeknél csak a típust
+   jegyzi meg, és a `finally` eltakarításához lép.
+3. Az eltakarítás `r._run([DOCKER_BIN,'rm','-f',test],timeout=12)`
+   parancsot ad ki. Ha ennek a visszatérési kódja nem nulla,
+   egyetlen további `r._run([DOCKER_BIN,...,'inspect',test],
+   timeout=8)` lekérdezést indít.
+4. Az inspect nulla visszatérési kódját létező konténernek,
+   minden egyéb kódját nem létező konténernek tekinti,
+   és a konténer-eltakarítást utóbbi esetben PASS-nak jelöli.
+5. A `ValueError`-ként érkező eltakarítási hibákat false
+   cleanup-nyugtává alakítja. Utána külön ellenőrzi a DB,
+   network és forrásmásolat eltakarítását.
+   Ha bármelyik elem false, a teljes futás
+   `RUNTIME_CLEANUP_FAILED` lesz.
+6. A receipt rögzíti a teljes futási azonosítót, a
+   parancs hashét, az eredmény rövidített naplóját és a
+   cleanup részstátuszokat.
+
+### Biztonsági megállapítás
+
+**Bizonyított implementációs gyengeség:** az egyszeri
+`docker inspect` bármely nem nulla visszatérését
+konténerhiányként értékeli, noha ugyanazt a hibakódot
+Docker daemon-/kommunikációs hiba is előállíthatja.
+Az `rm -f` sikerét sem követi második, független
+konténer-eltűnési ellenőrzés. Továbbá
+nincs dokumentált ismételt, korlátozott ellenőrzés a
+később eltűnő, automatikusan eltávolított konténerekhez.
+
+**A konkrét történelmi hiba közvetlen oka MÉG NEM BIZONYÍTOTT**:
+a `RUNTIME_CLEANUP_FAILED` igazolt, de nem tudjuk,
+hogy a 12 másodperces `rm -f` timeout, Docker daemon
+hiba, versenyhelyzet vagy valóban még létező konténer
+vezetett a hibás cleanup résznyugtához.
+Az M10 élő host-audit jelenleg nem mutat hátramaradt
+sandboxkonténert. Ez nem írja vissza PASS-ra a korábbi
+nyugtát, és nem igazolja a futtató helyességét.
+
+### M11 izolált javítási jelölt
+
+A GitHub-ágon elkészült a
+`updater/sandbox_cleanup_policy.py` tiszta, mellékhatásmentes
+döntéshozó; **nem telepített, nem regisztrált MCP-eszköz**.
+Két egymást követő, sikeres, célkonténerre szűkített,
+tényleges Docker inventory lekérdezésből kapott
+`ABSENT` bizonyítékot követel, a lekérdezési hibát
+`QUERY_ERROR`-ként fail-closed kezeli.
+Nem hív Docker API-t, nem indít subprocess-t, nem ad
+konténereltávolítási jogot és akkor sem enged új tesztet,
+ha a pillanatnyi hiány igazolt.
+
+`tests/test_sandbox_cleanup_policy.py` negatív esetei:
+rm siker után hiányzó inventory, rm hiba,
+daemon/inspect hiba, későbbi eltűnés, előzőleg jelen
+lévő konténer, ellenőrzési versenyhelyzet, hibás típusok,
+történelmi receipt és release readiness tilalma.
+CI [#41208818613](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41208818613):
+**484 updater + 12 bootstrap = 496/496 PASS**, Python compile PASS.
+
+**Következő kötelező forráskapu:** a Pi-n telepített
+`runtime_runner.py` fent rögzített
+`ae0387aed34768a7260cf01e6c1ff9d4620c506c37e7ae2a74706f661ee2db6c`
+SHA256-ú változatának `_run` és `_test_args`
+függvényeiből ellenőrizni a timeout exception,
+`--rm` és a fix konténernév szemantikáját.
+Csak ezután állítható elő minimális, forráspinnelt
+sandbox_command.py patch, amelyet külön
+konténeres negatív tesztekkel és helyi jóváhagyási
+kapuval lehet validálni. Az éles MCP, Docker,
+staging és tunnel változatlan.
