@@ -11,11 +11,14 @@ from updater import mcp_self_diagnostics as diag
 from updater import mcp_self_service_overlay as o
 
 
-def synthetic_original():
+def synthetic_original(*, allowlist_tuple=False):
+    audit = ("audit = (" + o.ANNOTATION_OLD + ")\n"
+             if allowlist_tuple else
+             "audit = " + repr(o.ANNOTATION_OLD) + "\n")
     source = (
         "import artifact_retention_adapter\n"
         + "TOOLS = [\n" + o.TOOLS_OLD + "]\n"
-        + "audit = " + repr(o.ANNOTATION_OLD) + "\n"
+        + audit
     )
     return source.encode()
 
@@ -39,6 +42,42 @@ class ToolRegistrationTests(unittest.TestCase):
         self.assertEqual(generated.count("import mcp_self_diagnostics"), 1)
         self.assertEqual(generated.count(o.TOOLS_OLD), 1)
         self.assertIn(o.ANNOTATION_NEW, generated)
+
+    def test_real_registry_and_separate_ast_allowlist_count(self):
+        # Models installed MCP source containing one tool entry and a
+        # second whitelist AST constant for each name. Prior M12 counted
+        # only the tool registration and failed before local consent.
+        source = synthetic_original(allowlist_tuple=True)
+        with patch.object(o, "EXPECTED_MCP_SHA256",
+                          hashlib.sha256(source).hexdigest()):
+            result = o.transform_mcp(source)
+        parsed = ast.parse(result)
+        strings = [n.value for n in ast.walk(parsed)
+                   if isinstance(n, ast.Constant) and
+                   type(n.value) is str]
+        for name in o.NAMES:
+            self.assertEqual(strings.count(name), 2)
+        self.assertIn(o.ANNOTATION_NEW, result.decode())
+
+    def test_third_ast_name_occurrence_is_rejected(self):
+        source = synthetic_original(allowlist_tuple=True)
+        source += b"rogue = 'fieldwork_mcp_docker_inventory'\n"
+        with patch.object(o, "EXPECTED_MCP_SHA256",
+                          hashlib.sha256(source).hexdigest()):
+            with self.assertRaisesRegex(
+                    o.SelfServiceOverlayDenied,
+                    "MCP_TOOL_REGISTER_AUDIT_COUNT_DENIED"):
+                o.transform_mcp(source)
+
+    def test_mixed_registration_and_whitelist_counts_rejected(self):
+        source = synthetic_original()
+        source += b"rogue = 'fieldwork_mcp_docker_inventory'\n"
+        with patch.object(o, "EXPECTED_MCP_SHA256",
+                          hashlib.sha256(source).hexdigest()):
+            with self.assertRaisesRegex(
+                    o.SelfServiceOverlayDenied,
+                    "MCP_TOOL_REGISTER_AUDIT_COUNT_DENIED"):
+                o.transform_mcp(source)
 
     def test_anchor_drift_is_deny_not_best_effort(self):
         source = synthetic_original().replace(
