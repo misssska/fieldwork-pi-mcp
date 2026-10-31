@@ -49,7 +49,7 @@ def _sync(path: Path):
 
 def _write_new(parent: Path, name: str, content: bytes):
     require(type(name) is str and
-            (name in {".complete.json"} or name in {
+            (name in {".complete.json", "manifest.json"} or name in {
                 Path(f).name for f in bundle.FILES
             }) and
             type(content) is bytes and 0 < len(content) <= bundle.MAX_FILE,
@@ -82,8 +82,6 @@ def stage_verified_archive(archive: bytes, *, trusted_outer_sha256: str,
     try:
         with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as t:
             for item in t:
-                if item.name.endswith("/manifest.json"):
-                    continue
                 require(item.isfile() and bundle._path_ok(item.name),
                         "M15_STAGE_UNVERIFIED_ENTRY")
                 relative = item.name[len(bundle.ROOT)+1:]
