@@ -156,5 +156,120 @@ class ActivateFailClosedTests(unittest.TestCase):
             self.assertRegex(a.MODULE_PINS[mod], r"^[a-f0-9]{64}$")
 
 
+class EntireActivationTransactionTests(unittest.TestCase):
+    """Simulated one-shot operator flow, fully confined to temp directories."""
+
+    def setup_temp(self, home):
+        import os
+        source = home / a.ROOT
+        source.mkdir(parents=True, mode=0o700)
+        state_parent = home / a.STATE_ROOT
+        state_parent.mkdir(parents=True, mode=0o700)
+        # Temporary root and all parent dirs stay owned by current user.
+        for path in (source / "fieldwork_mcp.py", source / "sandbox_command.py"):
+            path.write_bytes(b"old-mcp" if path.name == "fieldwork_mcp.py"
+                             else b"old-sandbox")
+            path.chmod(0o600)
+        return source, state_parent / a.STATE_NAME
+
+    def fake_transaction(self, home, *, approve=True, restart_results=None):
+        from contextlib import ExitStack
+        source, state = self.setup_temp(home)
+        oldmain, oldrun = b"old-mcp", b"old-sandbox"
+        newmain, newrun = b"new-mcp", b"new-sandbox"
+        extension = b"def source_inventory(args):\n    return {}\n"
+        sources = {name: b"pass\n" for name in a.MODULE_PINS}
+        sources["mcp_self_diagnostics.py"] = extension
+        fake_patcher = SimpleNamespace(build_mcp_and_cleanup=lambda _m, _s: {
+            "status": "M12_OFFLINE_CANDIDATE_ONLY",
+            "activation_authorized": False,
+            "mcp_bytes": newmain,
+            "sandbox_bytes": newrun,
+        })
+        receipt = None
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(a.Path, "home",
+                               return_value=home))
+            stack.enter_context(patch.object(a, "MAIN_PIN",
+                               a.sha(oldmain)))
+            stack.enter_context(patch.object(a, "RUNNER_PIN",
+                               a.sha(oldrun)))
+            stack.enter_context(patch.dict(a.MODULE_PINS, {
+                "mcp_self_diagnostics.py": a.sha(extension)}))
+            stack.enter_context(patch.object(a, "get_pinned",
+                               side_effect=lambda _commit, name: sources[name]))
+            stack.enter_context(patch.object(a, "modules_from_pins",
+                               return_value=fake_patcher))
+            system = stack.enter_context(
+                patch.object(a, "systemd",
+                    side_effect=(lambda operation:
+                        restart_results.pop(0) if operation == "restart"
+                        and restart_results is not None else True)))
+            stack.enter_context(patch.object(a, "ready", return_value=True))
+            stack.enter_context(patch.object(a.subprocess, "run",
+                               return_value=SimpleNamespace(returncode=0)))
+            stack.enter_context(patch("builtins.input", return_value=(
+                a.CONSENT if approve else "NEM")))
+            try:
+                receipt = a.execute_once("f" * 40, confirm=True)
+            except a.ActivationStop:
+                if approve:
+                    raise
+            if approve:
+                self.assertEqual((source / "fieldwork_mcp.py").read_bytes(),
+                                 newmain if receipt["status"] ==
+                                 "M12_READY_TOOL_DISCOVERY_PENDING" else oldmain)
+                self.assertEqual((source / "sandbox_command.py").read_bytes(),
+                                 newrun if receipt["status"] ==
+                                 "M12_READY_TOOL_DISCOVERY_PENDING" else oldrun)
+            else:
+                self.assertEqual((source / "fieldwork_mcp.py").read_bytes(), oldmain)
+                self.assertFalse(state.exists())
+                system.assert_called_once_with("is-active")
+        return receipt, source, state
+
+    def test_one_approval_installs_all_three_files_and_creates_backup(self):
+        with tempfile.TemporaryDirectory() as td:
+            receipt, root, state = self.fake_transaction(Path(td))
+            self.assertEqual(receipt["status"], "M12_READY_TOOL_DISCOVERY_PENDING")
+            self.assertTrue((root / "mcp_self_diagnostics.py").exists())
+            self.assertEqual((state / "previous-fieldwork_mcp.py").read_bytes(),
+                             b"old-mcp")
+            self.assertEqual((state / "previous-sandbox_command.py").read_bytes(),
+                             b"old-sandbox")
+            self.assertEqual((state / "receipt.json").stat().st_mode & 0o777,
+                             0o600)
+            self.assertFalse(receipt["production_modified"])
+            self.assertFalse(receipt["new_tunnel_created"])
+
+    def test_refused_local_approval_leaves_no_files_or_state(self):
+        with tempfile.TemporaryDirectory() as td:
+            receipt, root, state = self.fake_transaction(Path(td), approve=False)
+            self.assertIsNone(receipt)
+            self.assertFalse((root / "mcp_self_diagnostics.py").exists())
+            self.assertFalse(state.exists())
+
+    def test_failed_service_restart_restores_both_originals(self):
+        with tempfile.TemporaryDirectory() as td:
+            # The restart fails before readiness. Rollback uses the same
+            # fixed service and creates no new tunnel.
+            try:
+                self.fake_transaction(Path(td), restart_results=[False, True])
+            except a.ActivationStop as exc:
+                self.assertIn("TUNNEL_RESTART_FAILED", str(exc))
+            else:
+                self.fail("restart failure was not propagated")
+            root = Path(td) / a.ROOT
+            state = Path(td) / a.STATE_ROOT / a.STATE_NAME
+            self.assertEqual((root / "fieldwork_mcp.py").read_bytes(),
+                             b"old-mcp")
+            self.assertEqual((root / "sandbox_command.py").read_bytes(),
+                             b"old-sandbox")
+            self.assertFalse((root / "mcp_self_diagnostics.py").exists())
+            self.assertEqual(__import__("json").loads(
+                (state / "receipt.json").read_text())["status"],
+                "ROLLED_BACK")
+
+
 if __name__ == "__main__":
     unittest.main()
