@@ -145,7 +145,7 @@ def _docker(argv: tuple[str, ...], *, timeout: int = 120) -> str:
             "M15J4_DOCKER_VERB_DENIED")
     try:
         r = subprocess.run(list(argv), stdin=subprocess.DEVNULL,
-                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                            cwd="/", env={"PATH": "/usr/bin:/bin",
                                          "HOME": "/nonexistent"},
                            timeout=timeout, check=False, shell=False)
