@@ -185,3 +185,75 @@ hostoldali bizonyíték, a tesztkörnyezeti cleanup státusz
 
 **Helyi futási bizonyíték a Raspberry Pi-ről jelenleg nincs.**
 A forrás és a workflow kizárólag a GitHub fejlesztői ágán van.
+
+## 2026-10-31 – ELSŐ VALÓDI RASPBERRY PI HOST-LELTÁR (felhasználói nyugta)
+
+A Pi tulajdonosa az előző fejezetben SHA256-tal rögzített
+`pi_sandbox_orphan_audit.py` egyparancsos, csak olvasási ellenőrzését
+**ténylegesen a Raspberry Pi hoston** lefuttatta. A teljes JSON-nyugtát,
+majd ugyanott egy külön, olvasási `docker ps -a --no-trunc` Python
+lekérdezésből a 20 kezdetben nem osztályozott konténer
+nevét/állapotát/létrehozási idejét is visszaküldte. Nincs ismert
+Docker-módosító művelet.
+
+### Rögzített bizonyíték és megállapítás
+
+- `inventory_source=local_docker_container_ls_all`
+- `inventory_sha256=d1c0560c843b1d018f992d47da5bb54110e89650a94ddfd7125856647bf4adab`
+- `inventory_container_count=26`
+- `recognized_compose_project_label_count=6`
+- `unclassified_container_count=20`; a 16 elemű mintából
+  `unclassified_sample_truncated=true` volt, a későbbi teljes
+  manuális névlista mind a 20-at azonosította
+- A korábbi hibás runra `candidate_count=0`, nincs a név-/címke-
+  mezőkben pontos teljes 32-hex egyezés
+- A 20 elemből 12 `running`: `fieldwork-plan-m2` (3),
+  `fieldwork-parity-m3` (3), `m4` (3), `m5` (3)
+- A további 8 `exited`: korábbi `fieldwork-test` (1),
+  `fieldwork-candidate-592c4be` (3),
+  `fieldwork-review-test` (2), `hello-world` (2)
+- A teljes leltár **legfiatalabb konténerei** 2026-10-30
+  22:36:56 CET-kor keletkeztek, a problémás sandbox
+  `b901aaabbbcccdddeeefff0000000020` nyugtája
+  2026-10-31 12:58:51 UTC-kor, azaz 13:58:51 CET-kor.
+  Tehát a leltárban nincs a sikertelen futás után létrehozott,
+  akkor még fennálló konténer.
+- `host_modified=false`, `production_modified=false`,
+  `tunnel_modified=false`, `container_removal_authorized=false`.
+- Az újraolvasott tartós régi nyugta **továbbra is**
+  `RUNTIME_CLEANUP_FAILED`/`DOCKER_TIMEOUT`/
+  `test_container cleanup=false`; nem hamisítunk
+  visszamenőleges cleanup PASS-t.
+
+**Következtetés:**
+`CURRENT_HOST_INVENTORY_NO_RECENT_SANDBOX_ORPHAN_OBSERVED` –
+ez az adott pillanatban érvényes, tényleges host Docker-listán
+alapuló negatív megfigyelés. A történelmi cleanup receipt
+státusz továbbra is FAIL; az újraindítandó tesztfuttató timeout/
+cleanup viselkedését *külön* biztonsági hibaként kell vizsgálni.
+Nem teljesített a `FULL_TEST_RETRY_APPROVED` kapu, mert a
+futtató helyben auditált, hibát fail-closed módon kezelő javítása
+még hiányzik.
+
+**Érintetlen:** az éles `fieldwork`, a meglévő stage és mind a
+négy másik, háromkonténeres FieldWork Compose projekt. A
+`fieldwork-plan-m2` és `fieldwork-parity-m3/m4/m5` projektek
+megszüntetése, konténereinek vagy köteteinek tisztítása NINCS
+engedélyezve; ezek létjogosultságát külön projektgazdai döntés
+nélkül nem szabad megkérdőjelezhetetlenül elavultnak tekinteni.
+
+### Következő kapu
+
+1. A futó Pi v0.6.1 sandbox-runner timeout + cleanup
+   implementációjának **read-only source-review** és
+   helyileg, elkülönítve ellenőrzött javítása (kifejezetten a
+   `test_container cleanup=false` esetére).
+2. A javított futtató telepítése csak pontos forráshash,
+   célzott, szűk helyi engedély, backup, rollback és
+   production-szeparáció után.
+3. Csak ezután a valódi FieldWork backend és frontend teszt
+   újrapróbálása külön, tiszta canary-snapshotból.
+
+A Raspberry Pi-n most nincs új teszt, új MCP-telepítés,
+Docker leállítás/törlés, adatbázis-/tunnel- vagy production
+módosítás. A PR továbbra is **draft**.
