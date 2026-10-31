@@ -104,18 +104,22 @@ def parse_manifest(raw: bytes) -> tuple[str, list[dict]]:
     total = 0
     result = []
     for item in entries:
-        require(type(item) is dict and set(item) == {"path", "size", "sha256"},
+        require(type(item) is dict and set(item) == {"path", "size", "sha256", "previous_sha256"},
                 "MANIFEST_ENTRY_SCHEMA_DENIED")
-        path, size, hashed = item["path"], item["size"], item["sha256"]
+        path, size, hashed, previous = (item["path"], item["size"],
+                                        item["sha256"], item["previous_sha256"])
         require(allowed_path(path), "SOURCE_PATH_DENIED")
         require(path not in known, "DUPLICATE_MANIFEST_PATH")
         known.add(path)
+        require(previous is None or (type(previous) is str and
+                HEX64.fullmatch(previous) is not None), "PREVIOUS_SHA_INVALID")
         require(type(size) is int and 0 < size <= MAX_FILE, "SOURCE_SIZE_DENIED")
         require(type(hashed) is str and HEX64.fullmatch(hashed) is not None,
                 "SOURCE_HASH_INVALID")
         total += size
         require(total <= MAX_TOTAL, "TOTAL_SOURCE_SIZE_DENIED")
-        result.append({"path": path, "size": size, "sha256": hashed})
+        result.append({"path": path, "size": size, "sha256": hashed,
+                       "previous_sha256": previous})
     require([e["path"] for e in result] == sorted(known),
             "MANIFEST_ORDER_NOT_CANONICAL")
     return base, result
