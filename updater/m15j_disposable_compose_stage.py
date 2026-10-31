@@ -147,7 +147,10 @@ def _docker(argv: tuple[str, ...], *, timeout: int = 120) -> str:
         r = subprocess.run(list(argv), stdin=subprocess.DEVNULL,
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                            cwd="/", env={"PATH": "/usr/bin:/bin",
-                                         "HOME": "/nonexistent"},
+                                         # Docker Compose needs an existing writable
+                                         # user home for BuildKit/cache state.
+                                         # This code runs only on disposable CI.
+                                         "HOME": os.environ.get("HOME", "/tmp")},
                            timeout=timeout, check=False, shell=False)
     except (OSError, subprocess.SubprocessError):
         raise StageFixtureDenied("M15J4_DOCKER_TRANSPORT_UNVERIFIED") from None
