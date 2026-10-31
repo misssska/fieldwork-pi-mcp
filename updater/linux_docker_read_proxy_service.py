@@ -35,6 +35,13 @@ def read_fixed_config(*, config: Path = CONFIG) -> int:
             and config.name == "client.json"
             and not config.is_symlink() and config.is_file(),
             "DOCKER_HELPER_CONFIG_PATH_DENIED")
+    parent = config.parent
+    require(parent.is_dir() and not parent.is_symlink(),
+            "DOCKER_HELPER_CONFIG_PARENT_UNSAFE")
+    parent_stat = parent.stat()
+    require(parent_stat.st_uid in (0, os.geteuid()) and
+            not (stat.S_IMODE(parent_stat.st_mode) & 0o022),
+            "DOCKER_HELPER_CONFIG_PARENT_PERMISSIONS_DENIED")
     st = config.stat()
     require(st.st_uid in (0, os.geteuid()) and
             st.st_gid == os.getegid() and
