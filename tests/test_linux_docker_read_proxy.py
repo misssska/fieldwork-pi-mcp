@@ -141,9 +141,12 @@ class RealUnixCredentialsTests(unittest.TestCase):
                 server.close()
         thread=threading.Thread(target=worker,daemon=True)
         with client:
-            thread.start()
+            # Send before starting the worker to avoid a denial-path
+            # scheduling race: the helper may close immediately after
+            # rejecting the peer credential (BrokenPipe is not a backend bug).
             client.sendall(message)
             client.shutdown(socket.SHUT_WR)
+            thread.start()
             output=client.recv(p.MAX_REPLY+1024)
         thread.join(timeout=3)
         self.assertFalse(thread.is_alive())
