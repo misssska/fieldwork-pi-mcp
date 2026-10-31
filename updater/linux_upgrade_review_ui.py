@@ -12,6 +12,8 @@ handoff, OS service units and publisher trust checks are NOT yet integrated.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import base64
+import binascii
 import hashlib
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -80,6 +82,7 @@ class ReviewSession:
     """A single immutable plan, chosen by LOCAL trusted configuration."""
     plan: gate.ValidatedPlan
     local_secret: bytes = field(repr=False)
+    operator_token: bytes = field(repr=False)
     handoff: Path
     csrf: str = field(default_factory=lambda: secrets.token_urlsafe(32),
                       repr=False)
@@ -89,6 +92,11 @@ class ReviewSession:
     def __post_init__(self) -> None:
         require(type(self.local_secret) is bytes and
                 len(self.local_secret) >= 32, "REVIEW_LOCAL_KEY_INVALID")
+        require(type(self.operator_token) is bytes and
+                len(self.operator_token) >= 32 and
+                self.operator_token != self.local_secret and
+                all(33 <= c <= 126 and c != 58 for c in self.operator_token),
+                "REVIEW_OPERATOR_AUTH_INVALID")
         require(self.state == "PENDING", "REVIEW_STATE_INVALID")
         local.directory(self.handoff)
 
@@ -208,6 +216,32 @@ def create_local_server(session: ReviewSession,
             # Suppress request logs, including hidden CSRF form values.
             return
 
+        def _operator_authenticated(self) -> bool:
+            """Loopback alone is NOT authentication; remote MCP can open it."""
+            auth = self.headers.get("Authorization", "")
+            if type(auth) is not str or len(auth) > 256 or not auth.startswith("Basic "):
+                return False
+            try:
+                raw = base64.b64decode(auth[6:].encode("ascii"), validate=True)
+            except (ValueError, binascii.Error, UnicodeError):
+                return False
+            if len(raw) > 192 or not raw.startswith(b"operator:"):
+                return False
+            return hmac.compare_digest(raw[len(b"operator:"):],
+                                       session.operator_token)
+
+        def _authenticate(self) -> bool:
+            if self._operator_authenticated():
+                return True
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="M14 Local Operator"')
+            self.send_header("Content-Length", "0")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            return False
+
         def _safe_origin(self, *, post: bool) -> bool:
             if self.client_address[0] != "127.0.0.1":
                 return False
@@ -249,6 +283,8 @@ def create_local_server(session: ReviewSession,
                 return self._reply(403, b"FORBIDDEN")
             if self.path != "/":
                 return self._reply(404, b"NOT_FOUND")
+            if not self._authenticate():
+                return
             return self._reply(200, _html(session),
                                content_type="text/html; charset=utf-8")
 
@@ -257,6 +293,8 @@ def create_local_server(session: ReviewSession,
                 return self._reply(403, b"FORBIDDEN")
             if self.path != "/decision":
                 return self._reply(404, b"NOT_FOUND")
+            if not self._authenticate():
+                return
             if self.headers.get("Content-Type", "").split(";")[0] != (
                 "application/x-www-form-urlencoded"
             ):
