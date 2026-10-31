@@ -92,14 +92,14 @@ class BridgeTests(unittest.TestCase):
                            "version":1},
                           separators=(",",":"),sort_keys=True).encode()+b"\n"
 
-    def run(self, **kwargs):
+    def run_action(self, **kwargs):
         return self.bridge._mutate(
             payload=kwargs.pop("payload",self.packet()),
             uid=kwargs.pop("uid",self.operator_uid),
             now=kwargs.pop("now",self.now),**kwargs)
 
     def test_local_operator_can_stop_only_existing_stage_with_durable_journal(self):
-        result=self.run()
+        result=self.run_action()
         self.assertEqual(result["status"],"M15G_STAGE_EXISTING_ONLY_APPLIED")
         self.assertEqual(result["changed_count"],3)
         self.assertFalse(result["production_modified"])
@@ -117,7 +117,7 @@ class BridgeTests(unittest.TestCase):
         for uid in (self.mcp_uid, self.helper_uid, 0,True,self.operator_uid+1):
             with self.subTest(uid=uid),self.assertRaises(
                     bridge.StageBridgeDenied):
-                self.run(uid=uid)
+                self.run_action(uid=uid)
         self.assertEqual(len(self.docker.commands),self.original_calls)
 
     def test_canonical_input_only_and_no_extra_keys(self):
@@ -134,25 +134,25 @@ class BridgeTests(unittest.TestCase):
         for payload in bad:
             with self.subTest(packet=payload[:20]),self.assertRaises(
                     bridge.StageBridgeDenied):
-                self.run(payload=payload)
+                self.run_action(payload=payload)
         self.assertEqual(len(self.docker.commands),self.original_calls)
 
     def test_docker_container_id_change_blocks_before_mutation(self):
         self.docker.rows["api"]["id"]="f"*64
         with self.assertRaises(stage.StageDenied):
-            self.run()
+            self.run_action()
         self.assertTrue(all(row["state"]=="running"
                             for row in self.docker.rows.values()))
         self.docker.assert_scope()
 
     def test_expired_plan_denied(self):
         with self.assertRaises(stage.StageDenied):
-            self.run(now=self.now+181)
+            self.run_action(now=self.now+181)
 
     def test_midflight_docker_timeout_rolls_back_three_stage_containers(self):
         self.docker.fail_once="db"
         with self.assertRaises(stage.StageDenied):
-            self.run()
+            self.run_action()
         self.assertTrue(all(row["state"]=="running"
                             for row in self.docker.rows.values()))
         states=[json.loads(p.read_bytes())["state"]
@@ -161,9 +161,9 @@ class BridgeTests(unittest.TestCase):
         self.docker.assert_scope()
 
     def test_replay_same_plan_fails_after_committed_state_changes(self):
-        self.run()
+        self.run_action()
         with self.assertRaises(stage.StageDenied):
-            self.run()
+            self.run_action()
         self.docker.assert_scope()
 
     def test_socket_same_uid_is_denied_by_real_so_peercred(self):
