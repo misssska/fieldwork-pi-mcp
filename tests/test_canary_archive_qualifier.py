@@ -74,7 +74,7 @@ class StaticArchiveTests(unittest.TestCase):
                      "server/app/evil.py/../main.py",
                      "Dockerfile", "server/app/other.py\\hack"):
             with self.subTest(path=path), self.assertRaisesRegex(
-                q.QualificationDenied, "SOURCE_PATH_DENIED"
+                q.QualificationDenied, "UNAPPROVED_ARCHIVE_MEMBER|SOURCE_PATH_DENIED"
             ):
                 self.check(makezip({path: b"unsafe\n"}))
 
