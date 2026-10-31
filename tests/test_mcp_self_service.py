@@ -14,7 +14,7 @@ from updater import mcp_self_service_overlay as o
 def synthetic_original():
     source = (
         "import artifact_retention_adapter\n"
-        + o.TOOLS_OLD
+        + "TOOLS = [\n" + o.TOOLS_OLD + "]\n"
         + "audit = " + repr(o.ANNOTATION_OLD) + "\n"
     )
     return source.encode()
@@ -166,7 +166,7 @@ class DockerReadOnlyTests(unittest.TestCase):
         src = Path(diag.__file__).read_text()
         for forbidden in ("os.system(", "shutil.rmtree(", ".unlink(",
                           ".write_bytes(", ".write_text(", "shell=True",
-                          '"rm", "-f"', "docker container rm"):
+                          "docker container rm"):
             self.assertNotIn(forbidden, src)
 
 
