@@ -31,3 +31,5 @@ jobs:
         run: sha256sum updater/mcp_self_service_activate.py
       - name: Print M13 Linux MCP telemetry and overlay SHA256 pins
         run: sha256sum updater/linux_telemetry.py updater/mcp_linux_telemetry.py updater/mcp_linux_telemetry_overlay.py
+      - name: Print M13 pinned single-approval installer SHA256
+        run: sha256sum updater/mcp_linux_telemetry_activate.py
