@@ -273,6 +273,35 @@ class LocalHTTPTests(SessionTests):
             self.assertEqual(code, 403)
             self.assertEqual(len(list(self.session.handoff.iterdir())), 0)
 
+    def test_immediate_restart_reuses_only_closed_loopback_listener(self):
+        first = ui.create_local_server(self.session, port=0)
+        port = first.server_address[1]
+        worker = threading.Thread(target=first.serve_forever, daemon=True)
+        worker.start()
+        base = f"http://127.0.0.1:{port}"
+        try:
+            self.assertEqual(http(base + "/")[0], 200)
+            # SO_REUSEADDR must never make two active listeners share a port.
+            with self.assertRaises(OSError):
+                ui.create_local_server(self.session, port=port)
+        finally:
+            first.shutdown()
+            first.server_close()
+            worker.join(timeout=3)
+        self.assertFalse(worker.is_alive())
+        # Recent HTTP connections may still be in TCP TIME_WAIT. The service
+        # must restart immediately without SO_REUSEPORT.
+        second = ui.create_local_server(self.session, port=port)
+        worker2 = threading.Thread(target=second.serve_forever, daemon=True)
+        worker2.start()
+        try:
+            self.assertEqual(http(base + "/")[0], 200)
+        finally:
+            second.shutdown()
+            second.server_close()
+            worker2.join(timeout=3)
+        self.assertFalse(worker2.is_alive())
+
     def test_bind_is_strictly_loopback(self):
         with running_ui(self.session) as base:
             self.assertTrue(base.startswith("http://127.0.0.1:"))
