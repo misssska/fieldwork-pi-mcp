@@ -326,3 +326,80 @@ Az M6 közös TaskEditor és R08 naphoz rendelés
 a teljes M5 PASS-ig szintén **BLOCKED**.
 A Pi production API/staging MCP read-only lekérdezhető;
 az aktuális `main` piszkos munkafáját nem írtuk át.
+
+
+## 12. FieldWork app – M5 R4 teljes előellenőrzésű, rollbackelt izolált integrátor (2026-10-31)
+
+**A folytatás első valóban bizonyított hibája a korábbi M5 R3 integrátorban:**
+az `integrate.py` a `frontend/src/components/PhotoGallery.tsx` fájlt **már az
+összes másik forrásfájl SHA-, anchor-, célútvonal- és DocumentViewer-teszt
+ellenőrzése előtt felülírta**. Későbbi hibánál félkész M5 jelölt
+maradhatott hátra. Ez a teljes canary kiadási folyamatot kockáztatta.
+
+**Elkészült új R4 csomag, a korábbi R3/R2 változatok teljes tartalmával:**
+- `FieldWork_M5_R4_Atomic_Candidate_Gate_20261031.zip`;
+- SHA256 `45bda8f4b2714bbc1f8884e05ad21ac9fa2a0fb6f11885c907e7821cc764261b`;
+- ChatGPT Library: `/FieldWork/FieldWork_M5_R4_Atomic_Candidate_Gate_20261031.zip`,
+  a feltöltés nyugtája sikeres. **Nem került semmilyen app-forrás
+  a nyilvános MCP GitHub repositoryba.**
+- ZIP: 15 fájlos belső SHA256 manifest + verify.py; `M5_PACKAGE_INTEGRITY_PASS 15 files`.
+
+**M5 R4 javítás:**
+1. Új `m5r4_transaction.py` `CandidatePlan`: az összes meglévő és új
+   célfájlt, az összes módosító anchort, kiinduló SHA256-ot,
+   symlink/path/relatív útvonalat **memóriában előre ellenőrzi**.
+   A két egymást követő módosítás ugyanazon fájlon
+   láncolható, az eredeti fájlbyte-ok pedig változatlan
+   összehasonlítási alapot képeznek.
+2. A teljes `integrate.py` átírva erre a teljes terv-alapú
+   modellre; **egyetlen app célfájl sem íródik a legutolsó
+   DocumentViewer SHA/patch ellenőrzés befejezéséig**.
+3. `CandidatePlan.commit`: újraellenőrzi az összes eredeti
+   forrásbyte-ot, elhelyez `.m5r4-blocked` markert, majd
+   ideiglenes, fsyncelt és `os.replace`-szel cserélt
+   célfájlokat ír. Köztes hiba esetén az érintett
+   fájlokon best-effort rollback fut; sikertelen rollback
+   `ROLLBACK_INCOMPLETE` és **blokkoló marker marad**.
+   Teljes siker után `.m5r4-ready.json` pontos
+   forrás SHA256 nyugta keletkezik, a blokkoló marker eltűnik.
+4. `launch_canary.sh` közvetlenül az integrátor után,
+   **a Docker- és npm-futtatás előtt** újraellenőrzi
+   az összes nyugtázott fájl hashét és a blocker hiányát;
+   drift/bizonytalanság esetén STOP. Az eddigi
+   front/back teljes tesztkapu feltételei megmaradtak.
+5. Új `test_m5r4_atomic_integrator.py`: érvénytelen
+   késői anchor, forrás SHA drift, több egymást követő
+   változtatás ugyanarra a fájlra, szimulatív írási hiba,
+   rollback hiba, production/symlink/path escape és
+   receipt byte tamper negatív próbák.
+
+**Tényleges izolált ellenőrzés a munkakonténerben:**
+- `test_m5r4_atomic_integrator.py` **6/6 PASS**.
+- A korábbi `test_documentviewer_patch_gate.py` **4/4 PASS**.
+- A tényleges M5 fotókomment-routerrel, FastAPI TestClient
+  és SQLAlchemy SQLite tesztmodellel futó
+  `isolated_backend_contract_smoke.py` **15/15 PASS**.
+- `bash -n launch_canary.sh` PASS;
+  `python -m compileall` / `py_compile`: PASS.
+- npm registry DNS: `EAI_AGAIN registry.npmjs.org`;
+  **teljes FieldWork npm ci, TypeScript, ESLint, Vitest
+  és valós PostgreSQL/Playwright még NEM futott**.
+  A ZIP-es M4 csomag csak az M4 canary változásfájljait
+  tartalmazza, nem a teljes FieldWork alkalmazás-forrásfát;
+  ezért az R4 teljes M4→M5 integrációt az eredeti Pi
+  M4-kandidátuson **NEM teszteltük**.
+- A kiegészítés célja nem általános OS processz/UID/IPC
+  privilege isolation; hirtelen crash/host shutdown
+  esetén a fs tranzakció nem garantált, ezért a
+  blocker + receipt ellenőrzés a kiadás feltétele.
+
+**Go/no-go:** `M5R4_BUNDLE_VERIFIED`;
+`M5R4_TRANSACTION_UNIT_6_PASS`;
+`M5R3_NEGATIVE_4_PASS`;
+`M5_R2_FASTAPI_SQLITE_15_PASS`;
+`FULL_M4_TO_M5_INTEGRATION_NOT_RUN`;
+`DOCUMENT_VIEWER_REAL_VITEST_FAIL_NOT_RECHECKED`;
+`M5_DEPLOY_BLOCKED`;
+`M6_PARITY_BLOCKED`.
+A production `/opt/fieldwork`, DB, Docker és futó staging
+nem került módosításra.
