@@ -37,3 +37,5 @@ jobs:
         run: sha256sum updater/linux_upgrade_gate.py updater/linux_upgrade_inbox.py updater/linux_upgrade_local_transaction.py
       - name: Print M14B browser approval UI and local handoff SHA256
         run: sha256sum updater/linux_upgrade_review_ui.py updater/linux_upgrade_local_handoff.py
+      - name: Print M14C separated Linux operator and trust preflight SHA256
+        run: sha256sum updater/linux_upgrade_trust_gate.py updater/linux_upgrade_operator_app.py updater/linux_upgrade_review_ui.py deploy/systemd/linux-mcp-operator.service
