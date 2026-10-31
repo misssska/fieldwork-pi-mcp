@@ -119,7 +119,7 @@ def source_review(args: object) -> dict:
 
 def source_inventory(args: object) -> dict:
     """Give exact hashes and top-level method names without code bodies."""
-    _args(args, {})
+    _args(args, set())
     entries = []
     for name in sorted(ALLOWED_MODULES):
         try:
