@@ -138,7 +138,7 @@ def source_inventory(args: object) -> dict:
 
 def docker_inventory(args: object) -> dict:
     """Host read-only docker ps; no host shell, arbitrary argv or Docker writes."""
-    _args(args, {})
+    _args(args, set())
     require(os.geteuid() != 0, "ROOT_DENIED")
     command = [DOCKER, "--host", "unix:///var/run/docker.sock",
                "container", "ls", "--all", "--no-trunc",
