@@ -16,7 +16,7 @@ class SystemdPolicyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.text=UNIT.read_text(encoding="utf-8")
-        cls.config=configparser.ConfigParser(interpolation=None)
+        cls.config=configparser.ConfigParser(interpolation=None, strict=False)
         cls.config.optionxform=str
         cls.config.read_string(cls.text)
         cls.service=cls.config["Service"]
