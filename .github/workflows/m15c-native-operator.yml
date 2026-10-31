@@ -4,6 +4,8 @@ on:
     branches: [feat/artifact-inbox-no-manual-copy-20261030]
     paths:
       - tests/native_m15c_operator_acceptance.py
+      - tests/test_linux_upgrade_review_ui.py
+      - deploy/systemd/linux-mcp-operator.service
       - updater/linux_upgrade_operator_app.py
       - updater/linux_upgrade_review_ui.py
       - updater/linux_upgrade_gate.py
