@@ -159,6 +159,11 @@ class ApplianceScriptContract(unittest.TestCase):
                            timeout=5, check=False)
         self.assertEqual(p.returncode, 64)
 
+    def test_no_default_suite_is_allowed(self):
+        p = subprocess.run(["sh", str(SCRIPT)], stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=5, check=False)
+        self.assertEqual(p.returncode, 64)
+
     def test_all_five_suite_names_are_fixed_in_script(self):
         script = SCRIPT.read_text()
         for name in runner.SUITES:
@@ -173,6 +178,8 @@ class ApplianceScriptContract(unittest.TestCase):
         self.assertIn("FROM ${POSTGRES_BASE}", dockerfile)
         self.assertIn("COPY --from=fieldwork_base frontend/package.json", dockerfile)
         self.assertIn("COPY --from=policy fieldwork-test-suite", dockerfile)
+        self.assertIn('ENTRYPOINT ["/usr/local/bin/fieldwork-test-suite"]', dockerfile)
+        self.assertIn('CMD ["NO_UNAPPROVED_DEFAULT_SUITE"]', dockerfile)
         self.assertIn('sha256sum /build/frontend/package-lock.json', dockerfile)
         self.assertNotIn("COPY . /", dockerfile)
 
