@@ -13,6 +13,7 @@ on:
       - updater/linux_docker_read_proxy.py
       - updater/linux_docker_read_proxy_client.py
       - updater/linux_docker_read_proxy_service.py
+      - updater/linux_stage_existing_lifecycle.py
       - deploy/systemd/linux-mcp-docker-proxy.socket
       - deploy/systemd/linux-mcp-docker-proxy.service
       - deploy/systemd/linux-mcp-operator.service
@@ -26,6 +27,7 @@ on:
       - tests/test_linux_upgrade_systemd_unit.py
       - tests/test_linux_docker_read_proxy.py
       - tests/test_linux_docker_proxy_service.py
+      - tests/test_linux_stage_existing_lifecycle.py
       - .github/workflows/m14-linux-update-gate.yml
   workflow_dispatch:
 permissions:
@@ -50,6 +52,7 @@ jobs:
           test "$(id -u)" -ne 0
           python3 -m unittest discover -s tests -p 'test_linux_upgrade_*.py' -v
           python3 -m unittest discover -s tests -p 'test_linux_docker_*.py' -v
-          python3 -m compileall -q updater/linux_upgrade_gate.py updater/linux_upgrade_inbox.py updater/linux_upgrade_local_transaction.py updater/linux_upgrade_review_ui.py updater/linux_upgrade_local_handoff.py updater/linux_upgrade_trust_gate.py updater/linux_upgrade_operator_app.py updater/linux_docker_read_proxy.py updater/linux_docker_read_proxy_client.py updater/linux_docker_read_proxy_service.py
+          python3 -m unittest discover -s tests -p 'test_linux_stage_*.py' -v
+          python3 -m compileall -q updater/linux_upgrade_gate.py updater/linux_upgrade_inbox.py updater/linux_upgrade_local_transaction.py updater/linux_upgrade_review_ui.py updater/linux_upgrade_local_handoff.py updater/linux_upgrade_trust_gate.py updater/linux_upgrade_operator_app.py updater/linux_docker_read_proxy.py updater/linux_docker_read_proxy_client.py updater/linux_docker_read_proxy_service.py updater/linux_stage_existing_lifecycle.py
           echo "M14_OFFLINE_APPROVAL_AND_RECOVERY_PASS"
           echo "M14_NO_PI_DEPLOYMENT_OR_MCP_TOOL_REGISTRATION"
