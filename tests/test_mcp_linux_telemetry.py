@@ -51,7 +51,7 @@ class M13OverlayTests(unittest.TestCase):
     def test_source_anchor_missing_or_duplicate_denied(self):
         for source in (
             OLD_MAIN.replace("import mcp_self_diagnostics", "import other"),
-            OLD_MAIN + overlay.OLD_TOOL,
+            OLD_MAIN.replace("]\n", overlay.OLD_TOOL + "]\n"),
             OLD_MAIN.replace(overlay.OLD_TOOL, ""),
         ):
             with self.subTest(sha=hashlib.sha256(source.encode()).hexdigest()):
