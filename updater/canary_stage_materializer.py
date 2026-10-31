@@ -52,7 +52,10 @@ def _segments(path: str) -> tuple[str, ...]:
 # Do not copy repository-maintenance workflows into the test filesystem.
 OMIT_TOP_LEVEL = frozenset({"docs", "reference"})
 OMIT_EXACT = frozenset({".gitignore", ".gitattributes", ".editorconfig",
-                       "README.md", "LICENSE", "LICENSE.md"})
+                       ".env.example", ".dockerignore", "README.md",
+                       "LICENSE", "LICENSE.md"})
+OMIT_LOCAL_META = frozenset({".gitignore", ".gitattributes", ".editorconfig",
+                             ".dockerignore", ".env.example"})
 INCLUDE_TOP_LEVEL = frozenset({"frontend", "server", "nginx", "scripts"})
 INCLUDE_ROOT = frozenset({"docker-compose.yml", "docker-compose.test.yml",
                           "docker-compose.override.yml", "docker-compose.e2e.yml"})
@@ -73,6 +76,11 @@ def _source_policy(path: str) -> str:
     if path in OMIT_EXACT or any(
         path.startswith(name + "/") for name in OMIT_TOP_LEVEL
     ):
+        return "OMIT"
+    parts = path.split("/")
+    # Tooling metadata can occur inside frontend/server as well.
+    if len(parts) >= 2 and parts[0] in INCLUDE_TOP_LEVEL and \
+            parts[-1] in OMIT_LOCAL_META:
         return "OMIT"
     if path in INCLUDE_ROOT:
         return "INCLUDE"
