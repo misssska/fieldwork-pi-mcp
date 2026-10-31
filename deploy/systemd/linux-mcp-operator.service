@@ -1,0 +1,49 @@
+# M14C reference unit only. NEVER enable until independent trust review
+# confirms that the remotely exposed MCP process has NO Docker-socket,
+# passwordless sudo, root, privileged helper or host-escape capability.
+# Service is local-only; no phone/LAN ingress and NO software deployment.
+[Unit]
+Description=Linux MCP local operator review (no deployment)
+Documentation=https://github.com/misssska/fieldwork-pi-mcp
+After=local-fs.target
+RequiresMountsFor=/var/lib/linux-mcp-operator
+ConditionPathExists=/var/lib/linux-mcp-operator/config.json
+ConditionPathExists=/var/lib/linux-mcp-operator/request.json
+
+[Service]
+Type=simple
+User=linux-mcp-operator
+Group=linux-mcp-operator
+UMask=0077
+WorkingDirectory=/var/lib/linux-mcp-operator
+StateDirectory=linux-mcp-operator
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 -I /opt/linux-mcp-operator/linux_upgrade_operator_app.py --serve
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/linux-mcp-operator
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectProc=invisible
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=localhost
+SystemCallArchitectures=native
+LimitNOFILE=64
+
+[Install]
+WantedBy=multi-user.target
