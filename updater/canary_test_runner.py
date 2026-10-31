@@ -83,7 +83,8 @@ def _config() -> dict:
         raise q.QualificationDenied("TEST_POLICY_INVALID") from exc
     q.require(type(config) is dict and set(config) == {
         "schema", "profile", "image", "stage_testing_only",
-        "locally_approved"
+        "locally_approved", "frontend_lock_sha256",
+        "backend_requirements_sha256", "backend_dev_requirements_sha256"
     }, "TEST_POLICY_SCHEMA_DENIED")
     q.require(type(config["schema"]) is int and config["schema"] == 1 and
               config["profile"] == PROFILE and
@@ -92,7 +93,32 @@ def _config() -> dict:
               type(config["image"]) is str and
               IMAGE_RE.fullmatch(config["image"]) is not None,
               "TEST_IMAGE_NOT_LOCALLY_APPROVED")
+    for binding in ("frontend_lock_sha256", "backend_requirements_sha256",
+                    "backend_dev_requirements_sha256"):
+        q.require(type(config[binding]) is str and
+                  HEX64.fullmatch(config[binding]) is not None,
+                  "TEST_DEPENDENCY_PIN_INVALID")
     return config
+
+
+DEPENDENCY_FILES = {
+    "frontend_lock_sha256": "frontend/package-lock.json",
+    "backend_requirements_sha256": "server/requirements.txt",
+    "backend_dev_requirements_sha256": "server/requirements-dev.txt",
+}
+
+
+def _dependencies(transfer_id: str, config: dict) -> None:
+    """Reject appliance built against different dependencies/lockfiles."""
+    inbox._valid_id(transfer_id)
+    source = Path.home() / inbox.STATE.parent / stage.STAGE_NAME / transfer_id
+    for key, relative in DEPENDENCY_FILES.items():
+        path = source / relative
+        _owner_private(path, directory=False)
+        q.require(0 < path.stat().st_size <= 4 * 1024 * 1024,
+                  "TEST_DEPENDENCY_FILE_SIZE_DENIED")
+        q.require(hashlib.sha256(path.read_bytes()).hexdigest() == config[key],
+                  "TEST_DEPENDENCIES_NOT_MATCHING_APPROVED_IMAGE")
 
 
 def _key() -> bytes:
@@ -231,6 +257,7 @@ def run(transfer_id: str) -> dict:
     config = _config()  # must have explicit local approval before any command
     _key()  # require locally provisioned evidence key before creating run state
     baseline = stage.inspect_stage(transfer_id)
+    _dependencies(transfer_id, config)
     root = _root(transfer_id)
     report = {
         "schema": 1, "status": "TEST_RUNNING",
