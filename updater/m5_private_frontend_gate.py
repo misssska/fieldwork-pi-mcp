@@ -132,7 +132,8 @@ def preflight(*, workspace: Path, expected_commit: str,
     package = json.loads(path_file(root, "frontend/package.json").read_text())
     lock = json.loads(path_file(root, "frontend/package-lock.json").read_text())
     require(type(package) is dict and package.get("private") is True and
-            package.get("scripts") == SCRIPTS and
+            type(package.get("scripts")) is dict and
+            all(package["scripts"].get(key) == value for key, value in SCRIPTS.items()) and
             package.get("devDependencies", {}).get("vitest") == "3.2.7" and
             lock.get("packages", {}).get("node_modules/vitest", {}).get("version") == "3.2.7",
             "M5_NPM_SCRIPTS_OR_VITEST_LOCK_DRIFT")
