@@ -123,7 +123,7 @@ def install_inactive(archive: bytes, *, trusted_sha: str,
     require(os.geteuid() == 0, "M15B_ROOT_ONLY")
     require(local_admin_approval is True,
             "M15B_EXPLICIT_LOCAL_ADMIN_APPROVAL_REQUIRED")
-    require(type(install_parent) is Path and install_parent.is_absolute(),
+    require(isinstance(install_parent, Path) and install_parent.is_absolute(),
             "M15B_INSTALL_PARENT_INVALID")
     _directory_root_owned(install_parent)
     target = install_parent / INSTALL_DIR.name
