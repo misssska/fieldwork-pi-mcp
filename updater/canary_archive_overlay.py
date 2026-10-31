@@ -1,14 +1,15 @@
 """Fail-closed in-memory MCP extension for static canary archive qualification.
 
 The existing four artifact transport tools remain unchanged. This extension
-adds a fifth *read-only* qualification endpoint, never deployment.
+adds a static qualification endpoint and an explicitly confirmed artifact-retirement
+endpoint, never deployment.
 It must be locally activated only after exact source SHA verification.
 """
 from __future__ import annotations
 import ast
 
 IMPORT_OLD = "import artifact_inbox_adapter\n"
-IMPORT_NEW = IMPORT_OLD + "import canary_archive_qualifier\nimport canary_archive_adapter\n"
+IMPORT_NEW = IMPORT_OLD + "import canary_archive_qualifier\nimport canary_archive_adapter\nimport artifact_retention\nimport artifact_retention_adapter\n"
 
 TOOLS_OLD = '''    ("fieldwork_artifact_finalize", "Verify complete artifact SHA256; never deploy", {
         "transfer_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"}
@@ -17,9 +18,14 @@ TOOLS_OLD = '''    ("fieldwork_artifact_finalize", "Verify complete artifact SHA
 TOOLS_NEW = TOOLS_OLD + '''    ("fieldwork_artifact_qualify", "Statically validate verified source ZIP manifest, allowlisted paths and SHA256; never execute", {
         "transfer_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"}
     }, canary_archive_adapter.qualify),
+    ("fieldwork_artifact_retire", "Explicitly release one SHA256-verified inert upload, preserving replay tombstone; never execute", {
+        "transfer_id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "approval": {"type": "string", "enum": ["RETIRE_VERIFIED_CANARY"]}
+    }, artifact_retention_adapter.retire),
 '''
 ANNOTATION_OLD = '"fieldwork_stage_prepare", "fieldwork_stage_full_test", "fieldwork_stage_start", "fieldwork_artifact_begin", "fieldwork_artifact_append", "fieldwork_artifact_status", "fieldwork_artifact_finalize"'
-ANNOTATION_NEW = ANNOTATION_OLD + ', "fieldwork_artifact_qualify"'
+ANNOTATION_NEW = ANNOTATION_OLD + ', "fieldwork_artifact_qualify", "fieldwork_artifact_retire"'
 
 
 class SourceDrift(ValueError):
@@ -34,7 +40,8 @@ def overlay(original: bytes) -> bytes:
         ast.parse(source)
     except (UnicodeError, SyntaxError) as exc:
         raise SourceDrift("MCP_SOURCE_INVALID") from exc
-    if "fieldwork_artifact_qualify" in source or "import canary_archive_adapter" in source:
+    if any(name in source for name in ("fieldwork_artifact_qualify", "fieldwork_artifact_retire",
+                                       "import canary_archive_adapter", "import artifact_retention_adapter")):
         raise SourceDrift("ALREADY_PATCHED_OR_PARTIAL")
     for old, new in ((IMPORT_OLD, IMPORT_NEW),
                      (TOOLS_OLD, TOOLS_NEW),
