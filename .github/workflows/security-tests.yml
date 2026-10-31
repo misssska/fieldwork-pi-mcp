@@ -21,3 +21,5 @@ jobs:
         run: python -m compileall -q updater bootstrap experimental
       - name: Print immutable activation bootstrap SHA256
         run: sha256sum updater/activate_once.py
+      - name: Print SHA256 of reviewed local artifact extension v2
+        run: sha256sum updater/activate_artifact_extension_v2.py
