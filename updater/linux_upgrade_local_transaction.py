@@ -56,8 +56,9 @@ def directory(path: Path) -> None:
 
 
 def fixed_read(root: Path, name: str) -> bytes | None:
-    require(type(name) is str and gate.MODULE.fullmatch(name) is not None,
-            "LOCAL_MODULE_NAME_DENIED")
+    require(type(name) is str and
+            (gate.MODULE.fullmatch(name) is not None or
+             name == RECEIPT), "LOCAL_MODULE_NAME_DENIED")
     directory(root)
     path = root / name
     require(not path.is_symlink(), "LOCAL_MODULE_SYMLINK_DENIED")
