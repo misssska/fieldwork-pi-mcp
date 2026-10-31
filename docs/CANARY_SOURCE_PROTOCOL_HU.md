@@ -33,3 +33,10 @@ Csak `frontend/src/**/*.ts|tsx|css|svg`, `server/app/**/*.py` és `server/tests/
 Az aktív `artifact_inbox.py` legfeljebb 8 transzferkönyvtárat enged, és még nincs MCP-n keresztül biztonságos lezárási/takarítási művelet. A teszttranszferek is foglalnak helyet. Automatikus feltöltési ciklus előtt biztonságos retention/GC és készültségi receipt szükséges. Ne jelentsük a folyamatot véglegesnek, amíg ez nincs meg.
 
 Az archivált, 633 bájtos próba `base_commit` értéke tesztazonosító, **nem** valós FieldWork Git commit; csak átviteli tesztre használható, telepítésre nem.
+
+## Tárhely-életciklus javítása (a Pi-n még NEM aktív)
+
+- `artifact_retention.py`: kizárólag `VERIFIED` állapotú, az eredeti SHA256-értékkel azonosított csomag explicit lezárása. Tartós `retired-<id>.json` nyugta írása előzi meg az atomikus átnevezést; megszakadás utáni takarítás folytatható.
+- `artifact_retention_adapter.py`: pontos `transfer_id` + `sha256` + `RETIRE_VERIFIED_CANARY` megerősítés; nincs általános fájltörlés, a befejezetlen feltöltést nem törli.
+- `canary_archive_overlay.py`: a jövőbeli MCP-frissítésben egyben adná hozzá a `fieldwork_artifact_qualify` és a `fieldwork_artifact_retire` eszközöket. A jelenlegi telepített MCP ezeket még NEM tartalmazza.
+- A fejlesztési ág `artifact_inbox.py` módosítása az aktív transzfereket korlátozza nyolcra, és a lezárt azonosítók újrafelhasználását külön nyugtával tiltja.
