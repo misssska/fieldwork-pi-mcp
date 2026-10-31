@@ -52,6 +52,12 @@ jobs:
         run: |
           set -euo pipefail
           test ! -e /opt/linux-mcp-operator
+          # Hosted CI /opt is sometimes provisioned group-writable.
+          # Tighten ONLY this disposable runner to the release invariant.
+          sudo chown root:root /opt
+          sudo chmod go-w /opt
+          test "$(stat -c '%u' /opt)" = 0
+          test "$(stat -c '%a' /opt)" = 755
           # This is an ephemeral GitHub runner only. sudo here is not an
           # approval mechanism for a real Pi and no unit is registered.
           sudo env M15B_COMMIT="$GITHUB_SHA" \
