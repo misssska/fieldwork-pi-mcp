@@ -403,3 +403,82 @@ maradhatott hátra. Ez a teljes canary kiadási folyamatot kockáztatta.
 `M6_PARITY_BLOCKED`.
 A production `/opt/fieldwork`, DB, Docker és futó staging
 nem került módosításra.
+
+
+## 13. FieldWork app – M5 R5 kötelező teszteset-begyűjtési kapu (2026-10-31)
+
+**Tényleges új hiba az M5 R4 `launch_canary.sh`-ban:** a backend
+eredményét részben a teljes pytest `N passed` számával döntötte el.
+Ha a tesztgyűjtésből az új `tests/test_photo_comments_m5.py` kiesett,
+egy korábbi nagy, sikeres tesztcsomag (>90 teszt) továbbengedhette a
+M5 canary kiadást **úgy, hogy semelyik M5 fotókomment teszt nem futott**.
+Ez nem elfogadható, mert a M5 backend/permission regresszió
+átugorható volt.
+
+**Elkészült, izolált M5 R5 ZIP:**
+- `FieldWork_M5_R5_Exact_Test_Collection_Gate_20261031.zip`;
+- SHA256 `dc686147f61be0213d4b805216db7e998c77acb9a1ec0c017ba71b6ce23d02f9`;
+- ChatGPT Library: `/FieldWork/FieldWork_M5_R5_Exact_Test_Collection_Gate_20261031.zip`,
+  feltöltés ellenőrzött; **nem a nyilvános MCP repo alkalmazásforrása**;
+- az összes korábbi M5 R4/R3/R2 fájllal és 17 fájlos,
+  SHA256 alapú manifesttel: `M5_PACKAGE_INTEGRITY_PASS 17 files`.
+
+**Új tesztkapu:**
+- `m5r5_test_gate.py` standard-library-only, bounded,
+  fail-closed, explicit logellenőrző, önmagában nem
+  futtat alkalmazáskódot.
+- A backend indító most `pytest -v tests` kimenetet készít,
+  amelyből **név szerint mind az öt** új
+  `test_photo_comments_m5.py` teszt `PASSED`
+  eredménye kötelező; ha bármelyik hiányzik, ismételt,
+  `SKIPPED`, `FAILED`, `ERROR`, `XPASS`, `XFAIL`,
+  vagy a teljes teszteset-begyűjtés száma nem egyezik az
+  egyetlen pytest összesítéssel: **STOP**. Nem lehet
+  össztesztszám alapján kiváltani M5 specifikus bizonyítékot.
+- Frontend `m5-frontend-test.log`: egyértelmű
+  `Test Files N passed (N)` ÉS `Tests N passed (N)`,
+  illetve a **`DocumentViewer.test.tsx` és
+  `PhotoGalleryM5.test.tsx`** modulok explicit
+  megjelenése kötelező. Hiány/failure/második összesítés
+  STOP. Ez valódi Vitest logot igényel az M5 canary
+  build során, nem a mostani szintetikus tesztlogot.
+- A korábbi forrás SHA-, tranzakciós/rollback-,
+  canary-isolation- és M15-E biztonsági tilalmak
+  változatlanok. A minta `launch_canary.sh` **nem futott a Pi-n**.
+
+**Valóban futtatott izolált tesztek:**
+- `python -m unittest -q test_m5r5_test_gate.py
+  test_m5r4_atomic_integrator.py test_documentviewer_patch_gate.py`
+  **26/26 PASS**. Tartalmazza a régi 100+ tesztes,
+  de M5 modul nélküli hamis PASS elutasítását.
+- `isolated_backend_contract_smoke.py` **15/15 PASS**
+  valódi FastAPI TestClient és SQLAlchemy in-memory
+  SQLite, de **minimális modelljogosultság-helyettesítőkkel**.
+- `verify.py`: 17-fájlos ZIP manifest PASS;
+  `bash -n launch_canary.sh` PASS;
+  Python AST/compile PASS.
+- A lokális gépen npm registry nem elérhető;
+  a Pi MCP nem engedi általános frontend npm futtatását,
+  az M4 teljes app-forrás hiányzik a jelen munkakörnyezetről.
+  **Valódi teljes frontend Vitest, valódi M4+M5 PostgreSQL
+  pytest/migrációs kapu, port 18085 canary NEM FUTOTT.**
+- Az új M5 backend helyspecifikus tesztnapló feldolgozása
+  valós M4 CI tesztkimenet alapján még nem validált;
+  ha egy jelölt más pytest formátumot használ, fail-closed STOP.
+
+**Következő tényleges blokk:** a teljes,
+fájlonként pinelt `stage-v06/parity-m4.d2DIn9Zr`
+**létezésének és forrásintegritásának független
+read-only bizonyítása**, majd a külön `parity-m5.*`
+R5 jelölt és az alkalmazás-függőségekkel végzett
+TypeScript/ESLint/összes Vitest + backend/migráció/HTTP
+canary kiadási kapu. Az éles `/opt/fieldwork`,
+production DB, Docker és a működő staging írás nélkül maradt.
+
+**Állapot:** `M5R5_EXACT_FIVE_TESTS_GATE_READY`;
+`M5R5_NEGATIVE_26_PASS`;
+`M5R5_FASTAPI_SQLITE_15_PASS`;
+`M5_FULL_REPO_PARITY_NOT_RUN`;
+`DOCUMENTVIEWER_ROOT_CAUSE_NOT_PROVEN`;
+`M5_DEPLOY_BLOCKED`;
+`M6_PARITY_BLOCKED`.
