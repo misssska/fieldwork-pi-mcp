@@ -4,6 +4,8 @@ on:
     branches: [feat/artifact-inbox-no-manual-copy-20261030]
     paths:
       - updater/m15_*.py
+      - updater/linux_approval_redeemer.py
+      - tests/test_m15e_inactive_bundle.py
       - tests/test_m15_*.py
       - deploy/systemd/**
       - .github/workflows/m15b-inactive-bootstrap.yml
@@ -32,6 +34,7 @@ jobs:
           test "$(id -u)" -ne 0
           test ! -e /opt/linux-mcp-operator
           python3 -m unittest discover -s tests -p 'test_m15_*.py' -v
+          python3 -m unittest discover -s tests -p 'test_m15e_inactive_bundle.py' -v
           python3 -m updater.m15_portable_bundle \
             --source-root "$GITHUB_WORKSPACE" --commit "$GITHUB_SHA" \
             --out "$RUNNER_TEMP/m15b-candidate.tar.gz"
@@ -80,6 +83,13 @@ jobs:
           assert target.is_dir()
           assert (target/".complete.json").is_file()
           assert (target/"manifest.json").is_file()
+          import hashlib
+          installed=(target/"linux_approval_redeemer.py").read_bytes()
+          expected=Path("updater/linux_approval_redeemer.py").read_bytes()
+          assert hashlib.sha256(installed).digest() == hashlib.sha256(expected).digest()
+          assert (target/"linux_approval_redeemer.py").stat().st_uid == 0
+          assert (target/"linux_approval_redeemer.py").stat().st_mode & 0o222 == 0
+          print("M15E_REAL_DISPOSABLE_INACTIVE_SOURCE_INSTALL_PASS")
           assert not Path("/etc/systemd/system/linux-mcp-operator.service").exists()
           assert not Path("/run/linux-mcp-docker-proxy.sock").exists()
           print("M15B_REAL_ROOT_OWNED_INACTIVE_INSTALL_PASS")
