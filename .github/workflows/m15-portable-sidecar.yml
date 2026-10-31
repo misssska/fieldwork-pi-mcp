@@ -1,0 +1,96 @@
+name: M15 portable Linux sidecar candidate archive
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/m15_portable_bundle.py
+      - tests/test_m15_portable_bundle.py
+      - updater/linux_telemetry.py
+      - updater/mcp_linux_telemetry.py
+      - updater/linux_upgrade_*.py
+      - updater/linux_docker_*.py
+      - updater/linux_stage_*.py
+      - updater/linux_sandbox_*.py
+      - deploy/systemd/**
+      - .github/workflows/m15-portable-sidecar.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: m15-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate exact offline sidecar packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          python3 -m unittest discover -s tests -p 'test_m15_portable_bundle.py' -v
+          mkdir -p dist
+          python3 -m updater.m15_portable_bundle \
+            --source-root "$GITHUB_WORKSPACE" \
+            --commit "$GITHUB_SHA" \
+            --out "$GITHUB_WORKSPACE/dist/linux-mcp-sidecar-m15.tar.gz"
+          python3 - <<'PY'
+          from pathlib import Path
+          from updater.m15_portable_bundle import inspect_archive, sha
+          import os
+          path = Path("dist/linux-mcp-sidecar-m15.tar.gz")
+          raw = path.read_bytes()
+          report = inspect_archive(raw, trusted_outer_sha256=sha(raw),
+                                   trusted_source_commit=os.environ["GITHUB_SHA"])
+          assert report["installation_performed"] is False
+          assert report["activation_authorized"] is False
+          assert report["publisher_signature_verified"] is False
+          print("M15_PORTABLE_SIDECAR_OFFLINE_VERIFY_PASS")
+          print("M15_ARCHIVE_SHA256=" + report["outer_sha256"])
+          PY
+          # Rebuild at a distinct output path: byte-for-byte same gzip/tar.
+          python3 -m updater.m15_portable_bundle \
+            --source-root "$GITHUB_WORKSPACE" \
+            --commit "$GITHUB_SHA" \
+            --out "$GITHUB_WORKSPACE/dist/rebuild.tar.gz"
+          cmp dist/linux-mcp-sidecar-m15.tar.gz dist/rebuild.tar.gz
+          sha256sum dist/linux-mcp-sidecar-m15.tar.gz | cut -d' ' -f1 > dist/sha256.txt
+          echo 'M15_REPRODUCIBLE_ARCHIVE_PASS'
+      - name: Publish uninstalled candidate (for review only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: m15-portable-${{ matrix.runner }}
+          path: |
+            dist/linux-mcp-sidecar-m15.tar.gz
+            dist/sha256.txt
+          retention-days: 14
+          if-no-files-found: error
+
+  cross-architecture:
+    runs-on: ubuntu-24.04
+    needs: candidate
+    timeout-minutes: 6
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: m15-portable-ubuntu-24.04
+          path: x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: m15-portable-ubuntu-24.04-arm
+          path: arm64
+      - name: Verify identical bytes produced on ARM64 and x86-64
+        run: |
+          set -euo pipefail
+          cmp x64/linux-mcp-sidecar-m15.tar.gz arm64/linux-mcp-sidecar-m15.tar.gz
+          cmp x64/sha256.txt arm64/sha256.txt
+          echo "M15_CROSS_ARCH_BYTE_IDENTICAL_PASS"
+          echo "M15_NO_PI_INSTALL_OR_TUNNEL_RESTART"
