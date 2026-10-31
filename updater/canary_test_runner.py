@@ -29,7 +29,9 @@ from . import canary_stage_inspect as stage
 PIN_REL = Path(".local/state/fieldwork-pi-mcp/approved-test-appliance.json")
 KEY_REL = Path(".local/state/fieldwork-pi-mcp/local-test-attestation.key")
 TESTS_REL = Path(".local/state/fieldwork-pi-mcp/canary-test-receipts")
-IMAGE_RE = re.compile(r"fieldwork-canary-test-appliance@sha256:[a-f0-9]{64}\Z")
+# Accept immutable locally built image IDs without a registry/push. The old
+# repository-digest form remains supported for previous approved test policies.
+IMAGE_RE = re.compile(r"(?:fieldwork-canary-test-appliance@)?sha256:[a-f0-9]{64}\Z")
 HEX64 = re.compile(r"[a-f0-9]{64}\Z")
 SUITES = (
     "frontend-typecheck",
@@ -198,6 +200,7 @@ def _command(tid: str, suite: str, image: str) -> list[str]:
         "--user", f"{uid}:{gid}",
         "--mount", f"type=bind,source={source},target=/source,readonly",
         "--tmpfs", f"/work:rw,nosuid,nodev,size=1073741824,uid={uid},gid={gid}",
+        "--tmpfs", f"/tmp:rw,nosuid,nodev,size=268435456,uid={uid},gid={gid}",
         "--env", "HOME=/work",
         "--entrypoint", ENTRYPOINT,
         image, suite,
