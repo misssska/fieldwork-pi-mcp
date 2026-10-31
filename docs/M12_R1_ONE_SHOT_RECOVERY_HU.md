@@ -137,3 +137,58 @@ Az első új MCP eszközfelfedezés után sorban
 majd `fieldwork_mcp_source_review` az ellenőrzött
 cleanup-függvényre. Tilos az éles FieldWork vagy Docker
 módosítása felfedezési teszt címén.
+
+## 2026-10-31 – CHATGPT MCP DISCOVERY + LIVE READ-ONLY SMOKE: PASS
+
+A felhasználó a ChatGPT alkalmazásban frissítette a FieldWork Pi MCP
+eszközlistát. Ezt követően közvetlenül, a Pi MCP connectoron keresztül,
+**újabb SSH/Python parancs nélkül** megtörtént az alábbi teszt:
+
+| Új MCP eszköz | Éles Pi connector hívás | Eredmény |
+| --- | --- | --- |
+| `fieldwork_mcp_source_inventory` | `{}` | `READ_ONLY_MCP_SOURCE_INVENTORY`, PASS |
+| `fieldwork_mcp_docker_inventory` | `{}` | `READ_ONLY_HOST_DOCKER_INVENTORY`, PASS |
+| `fieldwork_mcp_source_review` | `{"module":"sandbox_command.py","function":"run_command"}` | `READ_ONLY_SOURCE_AST`, PASS |
+
+A ChatGPT eszközlistájában **36** FieldWork MCP eszköz elérhető
+(az előző 33 helyett). Az új eszközök nincsenek pusztán
+regisztrálva: **mindhárom valós MCP-hívása sikeres**.
+
+Az olvasási eredmények pontosan megfelelnek a helyi
+aktiválási nyugtának:
+
+- Aktív `fieldwork_mcp.py` SHA256:
+  `ee218971079b988e1e85b3790dd50228847e5e911e2e688b3df77972ad78b532`
+- Aktív `sandbox_command.py` SHA256:
+  `5a4a6ba775f7fd16d0660a654eb3ab8724659ff1ac72fd1427ed3c9eadb797f5`
+- `sandbox_command.run_command` AST sorai: **75–184**;
+  a kódban ott van az M11 két független `docker container ls
+  --all` ellenőrzés, így a javított cleanup-ág
+  **jelenlétét ténylegesen olvasással igazoltuk**.
+- `runtime_runner.py` SHA256 változatlan:
+  `ae0387aed34768a7260cf01e6c1ff9d4620c506c37e7ae2a74706f661ee2db6c`
+- Docker host összesen **26** konténer,
+  `inventory_sha256=49a2134035f671b57674e0f5f8ff58fc48ab6c23f0d3891a7e063ca9fc77b30b`,
+  12 másik aktív parity/plan és 6 production/stage
+  konténer; a korábbi hibás run után létrehozott
+  árva konténer nem látható.
+- FieldWork `/api/health` és `/health` **HTTP 200**;
+  staging `STAGE_HEALTH_PASS` (18081).
+- Minden teszt **csak olvasási**: a production,
+  PostgreSQL, staging, Docker és tunnel
+  nem lett módosítva ezekkel a hívásokkal.
+
+**M12 képesség-aktiválás végső státusz:**
+`LOCAL_ACTIVATION_PASS`, `CHATGPT_DISCOVERY_3_OF_3_PASS`,
+`LIVE_MCP_READONLY_SMOKE_3_OF_3_PASS`.
+A GitHubon végzett szintetikus Docker- és unit tesztektől
+különállóan ez egy valós Raspberry Pi MCP-kapcsolati eredmény.
+
+**Továbbra is külön kapu:**
+a történelmi `RUNTIME_CLEANUP_FAILED` receipt nem
+módosult és nem tekinthető visszamenőleg PASS-nak;
+az M11 új, futás közbeni negatív Docker-tesztjét
+nem indítottuk el a Pi-n. Az M12 diagnosztikához
+azonban többé nem kell kézzel terminálba másolt
+kódot futtatni. Új MCP-, tunnel-telepítés
+nem szükséges.
