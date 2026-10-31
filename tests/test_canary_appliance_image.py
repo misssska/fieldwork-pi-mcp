@@ -171,6 +171,10 @@ class ApplianceScriptContract(unittest.TestCase):
         self.assertIn("127.0.0.1:55432", script)
         self.assertIn("FIELDWORK_TESTING=1", script)
         self.assertIn("NSS_WRAPPER_PASSWD", script)
+        self.assertIn('export FIELDWORK_TEST_DATABASE_URL="postgresql+psycopg://canary@127.0.0.1:55432/fieldwork_test"', script)
+        self.assertNotIn("export DATABASE_URL=", script)
+        self.assertIn('if [ "${DATABASE_URL+x}" ]; then', script)
+        self.assertIn("REFUSING_INHERITED_APP_DATABASE_URL", script)
 
     def test_dockerfile_requires_named_contexts_and_source_hashes(self):
         dockerfile = DOCKERFILE.read_text()
