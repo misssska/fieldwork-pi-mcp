@@ -52,6 +52,9 @@ class MaterializerTests(unittest.TestCase):
         # Empty tracked Python modules are valid and must stay empty.
         (self.base / "server" / "app" / "__init__.py").write_bytes(b"")
         (self.base / ".gitignore").write_bytes(b".env\\n")
+        (self.base / ".env.example").write_bytes(b"EXAMPLE_PLACEHOLDER=unused\\n")
+        (self.base / "frontend" / ".gitignore").write_bytes(b"node_modules/\\n")
+        (self.base / "server" / ".dockerignore").write_bytes(b"__pycache__\\n")
         (self.base / "README.md").write_bytes(b"# FieldWork\\n")
         workflow = self.base / ".github" / "workflows" / "backend-tests.yml"
         workflow.parent.mkdir(parents=True)
@@ -85,6 +88,9 @@ class MaterializerTests(unittest.TestCase):
         self.assertEqual((work / "server/app/__init__.py").read_bytes(), b"")
         self.assertFalse((work / ".github").exists())
         self.assertFalse((work / ".gitignore").exists())
+        self.assertFalse((work / ".env.example").exists())
+        self.assertFalse((work / "frontend/.gitignore").exists())
+        self.assertFalse((work / "server/.dockerignore").exists())
         self.assertFalse((work / "README.md").exists())
         self.assertFalse((work / "docs").exists())
         self.assertEqual((self.base / EXISTING).read_bytes(), OLD)
