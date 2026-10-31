@@ -128,8 +128,8 @@ class MaterializerTests(unittest.TestCase):
 
     def test_stage_directory_collision_denied(self):
         self.add_transfer()
-        self.output_root.mkdir(parents=True)
-        (self.output_root / TID).mkdir()
+        self.output_root.mkdir(parents=True, mode=0o700)
+        (self.output_root / TID).mkdir(mode=0o700)
         with self.assertRaisesRegex(q.QualificationDenied,
                                     "STAGE_ALREADY_EXISTS_OR_PARTIAL"):
             stage.materialize_transfer(TID)
