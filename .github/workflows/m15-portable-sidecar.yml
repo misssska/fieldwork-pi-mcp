@@ -39,6 +39,8 @@ jobs:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 12
+    env:
+      M15_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
       - name: Validate exact offline sidecar packaging
@@ -55,7 +57,7 @@ jobs:
           mkdir -p dist
           python3 -m updater.m15_portable_bundle \
             --source-root "$GITHUB_WORKSPACE" \
-            --commit "$GITHUB_SHA" \
+            --commit "$M15_SOURCE_COMMIT" \
             --out "$GITHUB_WORKSPACE/dist/linux-mcp-sidecar-m15.tar.gz"
           python3 - <<'PY'
           from pathlib import Path
@@ -64,7 +66,7 @@ jobs:
           path = Path("dist/linux-mcp-sidecar-m15.tar.gz")
           raw = path.read_bytes()
           report = inspect_archive(raw, trusted_outer_sha256=sha(raw),
-                                   trusted_source_commit=os.environ["GITHUB_SHA"])
+                                   trusted_source_commit=os.environ["M15_SOURCE_COMMIT"])
           assert report["installation_performed"] is False
           assert report["activation_authorized"] is False
           assert report["publisher_signature_verified"] is False
@@ -74,7 +76,7 @@ jobs:
           # Rebuild at a distinct output path: byte-for-byte same gzip/tar.
           python3 -m updater.m15_portable_bundle \
             --source-root "$GITHUB_WORKSPACE" \
-            --commit "$GITHUB_SHA" \
+            --commit "$M15_SOURCE_COMMIT" \
             --out "$GITHUB_WORKSPACE/dist/rebuild.tar.gz"
           cmp dist/linux-mcp-sidecar-m15.tar.gz dist/rebuild.tar.gz
           sha256sum dist/linux-mcp-sidecar-m15.tar.gz | cut -d' ' -f1 > dist/sha256.txt
