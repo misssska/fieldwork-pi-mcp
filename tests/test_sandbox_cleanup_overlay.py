@@ -202,7 +202,6 @@ class GeneratedRuntimeSemanticsTests(unittest.TestCase):
         self.assertEqual(len(docker.calls), 2)
 
     def test_does_not_attempt_cleanup_when_no_test_started(self):
-        receipt, docker = test_fn([])
         # Explicitly call a separate fixture with attempted=False.
         scope = {}
         exec(compile(candidate()["candidate_source"],
