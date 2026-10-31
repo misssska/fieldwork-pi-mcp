@@ -133,3 +133,27 @@ még nem lett bekötve.
 akkori Dockerfile- és belépőverziót igazolja, nem az új
 adatbázis-kapu javított verzióját.** Az új ARM64 workflow
 eredményét külön futási azonosítóval kell értékelni.
+
+
+## Javított, natív ARM64 teszt – ellenőrzött új bizonyíték
+
+- **[GitHub Actions #41203866994](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41203866994): SUCCESS**, a tesztadatbázis két külön változójára javított
+  image és az ehhez igazított szintetikus alkalmazás 5/5 natív ARM64
+  tesztfázisa PASS.
+- **[GitHub Actions #41204046677](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41204046677): SUCCESS**, a backend pytest-et
+  külön ideiglenes `/work/server` könyvtárban futtató belépő és a
+  szintetikus `conftest.py` különválasztott DB-URL ellenőrzése PASS.
+- **[GitHub Actions #41204061721](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41204061721): SUCCESS**,
+  439 updater + 12 bootstrap = 451/451 unit/contract teszt és
+  Python compile PASS.
+- Új workflow `concurrency` beállítása megakadályozza a gyors egymás
+  utáni fejlesztői pushok miatti párhuzamosan számlázott ARM64
+  buildfutások felhalmozását.
+
+A CI-tesztben használt `conftest.py` saját *szintetikus*
+testadapter, a teljes FieldWork tesztkódja **nem** került GitHubra.
+Ezért továbbra sem állítható, hogy a FieldWork valós backend
+tesztjei, admin-rotation tesztje vagy frontend csomagja PASS.
+A live Pi sandbox külön `RUNTIME_CLEANUP_FAILED` jelzése
+függetlenül vizsgálandó; a GitHub runner sikerét tilos
+annak hostoldali cleanup-bizonyítékaként felhasználni.
