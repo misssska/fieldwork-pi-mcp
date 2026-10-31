@@ -78,7 +78,7 @@ class LocalTransactionTests(unittest.TestCase):
             journal = json.loads((state/digest/"receipt.json").read_text())
             self.assertEqual(journal["status"], "APPLIED")
             self.assertEqual((state/digest/"fieldwork_mcp.py").read_bytes(), OLD)
-            self.assertEqual(len(list(state/"spent".iterdir())), 1)
+            self.assertEqual(len(list((state/"spent").iterdir())), 1)
             self.assertEqual((state/digest/"receipt.json").stat().st_mode & 0o777, 0o600)
 
     def test_identical_approval_replay_denied_without_touching_source(self):
@@ -97,7 +97,7 @@ class LocalTransactionTests(unittest.TestCase):
                 self.apply(install, state, policy, request, approval)
             self.assertEqual((install/"fieldwork_mcp.py").read_bytes(), OLD)
             self.assertFalse((install/"linux_telemetry.py").exists())
-            self.assertEqual(len(list(state/"spent".iterdir())), 0)
+            self.assertEqual(len(list((state/"spent").iterdir())), 0)
 
     def test_modified_binary_content_sha_denied(self):
         with tempfile.TemporaryDirectory() as td:
@@ -108,7 +108,7 @@ class LocalTransactionTests(unittest.TestCase):
                     "linux_telemetry.py": CREATE,
                 })
             self.assertEqual((install/"fieldwork_mcp.py").read_bytes(), OLD)
-            self.assertEqual(len(list(state/"spent".iterdir())), 0)
+            self.assertEqual(len(list((state/"spent").iterdir())), 0)
 
     def test_invalid_python_denied_even_if_sha_pinned(self):
         with tempfile.TemporaryDirectory() as td:
