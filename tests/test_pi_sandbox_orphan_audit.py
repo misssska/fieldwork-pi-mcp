@@ -203,5 +203,66 @@ class LocalHostCommandContract(unittest.TestCase):
             proc.assert_not_called()
 
 
+class LocalHostOneShotCliTests(unittest.TestCase):
+    def test_no_args_reads_exact_historical_failed_run(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        output = StringIO()
+        expected = audit.classify_inventory(b"", audit.HISTORICAL_FAILED_RUN)
+        with patch.object(audit, "inspect_host", return_value=expected) as inspect:
+            with redirect_stdout(output):
+                code = audit.main([])
+        self.assertEqual(code, 0)
+        inspect.assert_called_once_with(audit.HISTORICAL_FAILED_RUN)
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["run_id"], audit.HISTORICAL_FAILED_RUN)
+        self.assertFalse(report["historical_cleanup_receipt_resolved"])
+        self.assertFalse(report["sandbox_test_retry_authorized"])
+        self.assertFalse(report["container_removal_authorized"])
+
+    def test_any_arg_rejected_without_query(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        for arg in ("--cleanup", "--run-id", "--help", "-h", "rm"):
+            with self.subTest(arg=arg):
+                output = StringIO()
+                with patch.object(audit, "inspect_host") as inspect:
+                    with redirect_stdout(output):
+                        code = audit.main([arg])
+                    inspect.assert_not_called()
+                self.assertEqual(code, 2)
+                report = json.loads(output.getvalue())
+                self.assertEqual(report["status"], "AUDIT_BLOCKED")
+                self.assertFalse(report["sandbox_test_retry_authorized"])
+
+    def test_docker_errors_become_redacted_denial(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        output = StringIO()
+        with patch.object(audit, "inspect_host",
+                          side_effect=audit.HostAuditDenied(
+                              "DOCKER_ERROR_WITH_SUPPRESSED_SECRET")):
+            with redirect_stdout(output):
+                code = audit.main([])
+        self.assertEqual(code, 2)
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["reason"], "AUDIT_LOCAL_HOST_QUERY_NOT_VERIFIED")
+        self.assertFalse(report["historical_cleanup_receipt_resolved"])
+        self.assertNotIn("SUPPRESSED_SECRET", output.getvalue())
+
+    def test_standalone_entrypoint_is_exact_and_import_only_by_default(self):
+        import ast
+        from pathlib import Path
+        source = Path(audit.__file__).read_text()
+        tree = ast.parse(source)
+        self.assertEqual(audit.HISTORICAL_FAILED_RUN,
+                         "b901aaabbbcccdddeeefff0000000020")
+        self.assertIn('if __name__ == "__main__":', source)
+        self.assertIn("raise SystemExit(main())", source)
+        self.assertFalse(any(isinstance(n, ast.Call) and
+                         isinstance(n.func, ast.Name) and
+                         n.func.id in {"eval", "exec"} for n in ast.walk(tree)))
+
+
 if __name__ == "__main__":
     unittest.main()
