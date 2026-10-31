@@ -96,7 +96,14 @@ def transform_mcp(source: bytes) -> bytes:
     names = [n.value for n in ast.walk(tree) if
              isinstance(n, ast.Constant) and
              type(n.value) is str and n.value in NAMES]
-    require(set(names) == NAMES and len(names) == len(NAMES),
+    # Active v0.6.1 contains both a tool registration and a separate
+    # source-level allowlist of tool names. Each added name is therefore
+    # present twice as an AST Constant. Synthetic wrappers with a combined
+    # string literal for the allowlist have one AST occurrence instead.
+    # Both shapes preserve exact source anchors and exactly three new
+    # registrations; unexpected third appearances always fail closed.
+    require(set(names) == NAMES and
+            all(names.count(name) in (1, 2) for name in NAMES),
             "MCP_TOOL_REGISTER_AUDIT_COUNT_DENIED")
     return result
 
