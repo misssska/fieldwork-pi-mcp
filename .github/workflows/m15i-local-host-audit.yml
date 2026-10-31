@@ -37,6 +37,7 @@ jobs:
           set -euo pipefail
           python3 -m unittest discover -s tests -p 'test_m15i_local_privilege_audit.py' -v
           python3 -m compileall -q updater/m15i_local_privilege_audit.py
+          sha256sum updater/m15i_local_privilege_audit.py
           if python3 -m updater.m15i_local_privilege_audit --audit; then
             echo 'ERROR: nonroot audit unexpectedly accepted'; exit 1
           else
