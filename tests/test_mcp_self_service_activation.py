@@ -271,5 +271,31 @@ class EntireActivationTransactionTests(unittest.TestCase):
                 "ROLLED_BACK")
 
 
+class PreflightDiagnosticTests(unittest.TestCase):
+    def test_exact_review_failure_code_visible_without_source_leak(self):
+        with patch("sys.argv", ["m12", "--commit", "a" * 40,
+                                "--activate"]), patch.object(
+                    a, "execute_once",
+                    side_effect=ValueError("MCP_TOOL_REGISTER_AUDIT_COUNT_DENIED")), patch(
+                    "builtins.print") as output:
+            self.assertEqual(a.main(), 2)
+        output.assert_called_once_with(
+            "M12_STOP=MCP_TOOL_REGISTER_AUDIT_COUNT_DENIED", flush=True)
+
+    def test_arbitrary_python_failure_text_redacted(self):
+        with patch("sys.argv", ["m12", "--commit", "a" * 40,
+                                "--activate"]), patch.object(
+                    a, "execute_once",
+                    side_effect=ValueError("secret token=123\\n/private/.env")), patch(
+                    "builtins.print") as output:
+            self.assertEqual(a.main(), 2)
+        output.assert_called_once_with("M12_STOP=ValueError", flush=True)
+
+    def test_updated_overlay_source_is_exactly_sha_pinned(self):
+        self.assertEqual(
+            a.MODULE_PINS["mcp_self_service_overlay.py"],
+            "4bf4ee041ddfe8b952d6c7bd5ebd8c195553bfba9f455b33b75fea0ad9071c4d")
+
+
 if __name__ == "__main__":
     unittest.main()
