@@ -20,6 +20,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import tempfile
 import subprocess
 import time
 
@@ -262,6 +263,55 @@ def _new_file(root: Path, name: str, content: bytes) -> None:
         os.close(dirfd)
 
 
+def _replace_receipt(root: Path, name: str, body: dict) -> None:
+    """Durable atomic status write. Never unlink the consumed nonce."""
+    _secure_state(root)
+    require(type(name) is str and HEX64.fullmatch(name) is not None,
+            "STAGE_RECEIPT_NAME_DENIED")
+    path = root / name
+    require(path.is_file() and not path.is_symlink(),
+            "STAGE_RECEIPT_PATH_DENIED")
+    fd, tmp_name = tempfile.mkstemp(prefix=".m14e-", dir=root)
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as file:
+            file.write(canon(body))
+            file.flush()
+            os.fsync(file.fileno())
+        tmp.chmod(0o600)
+        os.replace(tmp, path)
+        directory_fd = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+
+
+def _deny_unfinished(root: Path) -> None:
+    """No further operation while prior crash/partial rollback is unresolved."""
+    _secure_state(root)
+    for path in root.iterdir():
+        if not HEX64.fullmatch(path.name):
+            continue
+        require(path.is_file() and not path.is_symlink(),
+                "STAGE_JOURNAL_PATH_DENIED")
+        st = path.stat()
+        require(st.st_uid == os.geteuid() and
+                stat.S_IMODE(st.st_mode) == 0o600 and
+                0 < st.st_size <= 4096,
+                "STAGE_JOURNAL_MODE_DENIED")
+        try:
+            state = json.loads(path.read_bytes())
+        except (ValueError, OSError) as exc:
+            raise StageDenied("STAGE_JOURNAL_CORRUPT") from exc
+        require(type(state) is dict and
+                state.get("state") in {"COMMITTED", "ROLLED_BACK"},
+                "STAGE_PENDING_MANUAL_RECOVERY")
+
+
 def execute_approved(plan: dict, ticket: dict, *,
                      secret: bytes, state: Path, now: int) -> dict:
     """Local Docker helper only; no remote entrypoint or arbitrary operations.
@@ -281,6 +331,7 @@ def execute_approved(plan: dict, ticket: dict, *,
                 stat.S_IMODE(st.st_mode) == 0o600,
                 "STAGE_LOCK_PERMISSIONS_DENIED")
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _deny_unfinished(state)
         nonce = verify_ticket(plan, ticket, secret=secret, now=now)
         digest = validate_plan(plan, now=now, observe=True)
         # Digest + nonce are linked; no privilege-bearing file path from caller.
@@ -289,44 +340,59 @@ def execute_approved(plan: dict, ticket: dict, *,
                                        "state": "PREPARED",
                                        "action": plan["action"]}))
         original, target = STATE_MODES[plan["action"]]
-        changes = []
+        attempted = []
+        _replace_receipt(state, marker, {
+            "plan": digest, "action": plan["action"], "state": "APPLYING"})
         try:
             for row in plan["containers"]:
-                # Inspect immutable full container ID with exact labels and
-                # initial status immediately before every change.
+                # The immutable full ID plus exact Compose labels and
+                # pre-state must still match immediately before the action.
                 got = _parse_inspect(_docker(
                     [DOCKER, "container", "inspect", "--format",
                      DETAIL_FMT, row["id"]]), row["service"])
-                require(got == row,
-                        "STAGE_PRE_MUTATION_ID_OR_STATE_DRIFT")
+                require(got == row, "STAGE_PRE_MUTATION_ID_OR_STATE_DRIFT")
+                # Track BEFORE running Docker; a timeout can occur AFTER the
+                # Docker daemon has already applied the requested change.
+                attempted.append(row)
                 _docker([DOCKER, "container", plan["action"], row["id"]],
                         timeout=30)
-                changes.append(row)
-                verified = _parse_inspect(_docker(
+                observed = _parse_inspect(_docker(
                     [DOCKER, "container", "inspect", "--format",
                      DETAIL_FMT, row["id"]]), row["service"])
-                require(verified["id"] == row["id"] and
-                        verified["state"] == target,
+                require(observed["id"] == row["id"] and
+                        observed["state"] == target,
                         "STAGE_POST_MUTATION_STATE_DENIED")
+            require(snapshot() == [
+                {**row, "state": target} for row in plan["containers"]
+            ], "STAGE_FINAL_SNAPSHOT_DENIED")
         except Exception:
-            for row in reversed(changes):
+            # Best effort bounded rollback, with a durable UNCERTAIN state
+            # on any failure. New approvals are blocked until reconciled.
+            for row in reversed(attempted):
                 try:
                     current = _parse_inspect(_docker(
                         [DOCKER, "container", "inspect", "--format",
                          DETAIL_FMT, row["id"]]), row["service"])
-                    if current["state"] == target:
+                    if current["id"] == row["id"] and current["state"] == target:
                         reverse = "start" if plan["action"] == "stop" else "stop"
                         _docker([DOCKER, "container", reverse, row["id"]],
                                 timeout=30)
                 except Exception:
-                    # Fail closed. A privileged human must reconcile any
-                    # partial rollback before a subsequent planned action.
                     pass
+            try:
+                restored = snapshot() == plan["containers"]
+            except Exception:
+                restored = False
+            _replace_receipt(state, marker, {
+                "plan": digest, "action": plan["action"],
+                "state": "ROLLED_BACK" if restored else "ROLLBACK_UNCERTAIN"})
             raise StageDenied("STAGE_EXECUTION_FAILED_CHECK_LOCAL_STATE")
+        _replace_receipt(state, marker, {
+            "plan": digest, "action": plan["action"], "state": "COMMITTED"})
         return {
             "status": "STAGE_APPROVED_EXISTING_CONTAINERS_CHANGED",
             "project": PROJECT, "action": plan["action"],
-            "changed_count": len(changes), "plan_sha256": digest,
+            "changed_count": len(attempted), "plan_sha256": digest,
             "volume_deleted": False, "production_modified": False,
         }
     finally:
