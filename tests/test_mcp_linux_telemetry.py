@@ -52,10 +52,10 @@ class M13OverlayTests(unittest.TestCase):
         # Use the literal exact M12 generated registration bytes, rather than
         # a smaller hand-written approximation.
         from updater import mcp_self_service_overlay as m12
-        src = ("import artifact_retention_adapter\\n"
-               "import mcp_self_diagnostics\\n"
-               "TOOLS = [\\n" + m12.TOOLS_NEW + "]\\n"
-               "MUTATING_NAMES = (" + m12.ANNOTATION_NEW + ")\\n")
+        src = ("import artifact_retention_adapter\n"
+               "import mcp_self_diagnostics\n"
+               "TOOLS = [\n" + m12.TOOLS_NEW + "]\n"
+               "MUTATING_NAMES = (" + m12.ANNOTATION_NEW + ")\n")
         with patch.object(overlay, "EXPECTED_MAIN_SHA256",
                           hashlib.sha256(src.encode()).hexdigest()):
             candidate = overlay.build(src.encode())["candidate_bytes"].decode()
