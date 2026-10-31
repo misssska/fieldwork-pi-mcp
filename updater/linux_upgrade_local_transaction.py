@@ -195,6 +195,11 @@ def _restore(root: Path, txn: Path, journal: dict,
     rows = journal["files"]
     require(0 < len(rows) <= gate.MAX_FILES,
             "LOCAL_RESTORE_FILE_COUNT_DENIED")
+    # IMPORTANT: preflight ALL targets and backups before restoring ANY.
+    # A foreign change in the final file must not cause an earlier file
+    # to be silently rolled back in a partially reconciled transaction.
+    actions = []
+    names = set()
     for row in rows:
         require(type(row) is dict and
                 set(row) == {"name", "action", "old_sha256", "new_sha256"},
@@ -202,27 +207,38 @@ def _restore(root: Path, txn: Path, journal: dict,
         name = row["name"]
         require(type(name) is str and
                 name in policy.allowed_modules and
-                name not in policy.locked_modules,
+                name not in policy.locked_modules and
+                name not in names,
                 "LOCAL_RESTORE_SCOPE_DENIED")
+        names.add(name)
+        require(type(row["new_sha256"]) is str and
+                gate.HEX64.fullmatch(row["new_sha256"]) is not None,
+                "LOCAL_RESTORE_NEW_HASH_INVALID")
         current = fixed_read(root, name)
         current_sha = sha(current) if current is not None else None
         if row["action"] == "replace":
-            require(current_sha in (row["old_sha256"],
-                                    row["new_sha256"]),
+            require(type(row["old_sha256"]) is str and
+                    gate.HEX64.fullmatch(row["old_sha256"]) is not None and
+                    current_sha in (row["old_sha256"], row["new_sha256"]),
                     "LOCAL_RESTORE_FOREIGN_CHANGE_DENIED")
             original = fixed_read(txn, name)
             require(original is not None and
                     sha(original) == row["old_sha256"],
                     "LOCAL_RESTORE_BACKUP_INVALID")
-            write_atomic(root, name, original)
+            actions.append(("replace", name, original))
         else:
             require(row["action"] == "create" and
                     row["old_sha256"] is None and
                     current_sha in (None, row["new_sha256"]),
                     "LOCAL_RESTORE_UNEXPECTED_CREATE")
-            if current is not None:
-                (root / name).unlink()
-                sync(root)
+            actions.append(("remove" if current is not None else
+                            "unchanged", name, None))
+    for action, name, original in actions:
+        if action == "replace":
+            write_atomic(root, name, original)
+        elif action == "remove":
+            (root / name).unlink()
+            sync(root)
     require(health_check() is True, "LOCAL_RESTORE_HEALTH_FAILED")
     journal["status"] = "ROLLED_BACK"
     _receipt(txn, journal)
