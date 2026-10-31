@@ -1,0 +1,83 @@
+name: M14E isolated Docker stage lifecycle approval smoke
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/linux_stage_existing_lifecycle.py
+      - tests/test_linux_stage_existing_lifecycle.py
+      - .github/workflows/m14e-isolated-stage-lifecycle.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: m14e-stage-fixture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  disposable-docker-stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise exact-label stage start/stop against disposable local Docker only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          docker info --format '{{.ServerVersion}}' >/dev/null
+          docker pull alpine:3.21 >/dev/null
+          cleanup() {
+            docker container rm -f fieldwork-stage-api-1 fieldwork-stage-db-1 fieldwork-stage-nginx-1 fieldwork-api-1 >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          for s in api db nginx; do
+            docker container run -d --network none               --name "fieldwork-stage-${s}-1"               --label com.docker.compose.project=fieldwork-stage               --label "com.docker.compose.service=${s}"               --label com.docker.compose.container-number=1               alpine:3.21 sleep 180 >/dev/null
+          done
+          # This intentionally separate protected project must never change.
+          docker container run -d --network none             --name fieldwork-api-1             --label com.docker.compose.project=fieldwork             --label com.docker.compose.service=api             --label com.docker.compose.container-number=1             alpine:3.21 sleep 180 >/dev/null
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import tempfile
+          import time
+          from updater import linux_stage_existing_lifecycle as lifecycle
+
+          now = int(time.time())
+          key = os.urandom(48)
+          rows = lifecycle.snapshot()
+          assert len(rows) == 3 and all(r["state"] == "running" for r in rows)
+          with tempfile.TemporaryDirectory(prefix="m14e-stage-only-") as td:
+              local_state = Path(td)
+              local_state.chmod(0o700)
+              to_stop = lifecycle.plan_action("stop", now=now)
+              approval = lifecycle.issue_local_ticket(
+                  to_stop, secret=key, local_operator_present=True,
+                  now=now, nonce=os.urandom(16).hex())
+              result = lifecycle.execute_approved(
+                  to_stop, approval, secret=key, state=local_state, now=now)
+              assert result["changed_count"] == 3
+              assert result["volume_deleted"] is False
+              assert all(r["state"] == "exited" for r in lifecycle.snapshot())
+              print("M14E_REAL_DOCKER_STAGE_STOP_APPROVED_PASS")
+              # Replay is rejected even if the live daemon changes later.
+              try:
+                  lifecycle.execute_approved(
+                      to_stop, approval, secret=key, state=local_state, now=now)
+              except lifecycle.StageDenied:
+                  pass
+              else:
+                  raise AssertionError("REPLAY_ACCEPTED")
+              to_start = lifecycle.plan_action("start", now=now)
+              approval2 = lifecycle.issue_local_ticket(
+                  to_start, secret=key, local_operator_present=True,
+                  now=now, nonce=os.urandom(16).hex())
+              result = lifecycle.execute_approved(
+                  to_start, approval2, secret=key, state=local_state, now=now)
+              assert result["changed_count"] == 3
+              assert all(r["state"] == "running" for r in lifecycle.snapshot())
+              print("M14E_REAL_DOCKER_STAGE_START_APPROVED_PASS")
+          PY
+          test "$(docker container inspect --format '{{.State.Status}}' fieldwork-api-1)" = running
+          test "$(docker container inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' fieldwork-api-1)" = fieldwork
+          echo 'M14E_PROTECTED_PRODUCTION_FIXTURE_UNTOUCHED_PASS'
