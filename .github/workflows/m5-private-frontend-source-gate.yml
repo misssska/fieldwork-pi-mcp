@@ -1,0 +1,51 @@
+name: M5 private frontend source gate (synthetic CI only)
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/m5_private_frontend_gate.py
+      - tests/test_m5_private_frontend_gate.py
+      - .github/actions/m5-private-frontend-gate/action.yml
+      - .github/workflows/m5-private-frontend-source-gate.yml
+  pull_request:
+    paths:
+      - updater/m5_private_frontend_gate.py
+      - tests/test_m5_private_frontend_gate.py
+      - .github/actions/m5-private-frontend-gate/action.yml
+      - .github/workflows/m5-private-frontend-source-gate.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m5-private-ci-contract-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  private-source-gate-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate real temporary Git repositories and malicious receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_m5_private_frontend_gate.py' -v
+          echo M5_PRIVATE_SOURCE_GATE_NEGATIVE_AND_POSITIVE_12_PASS
+      - name: Confirm public repository cannot invoke private gate
+        id: denied
+        continue-on-error: true
+        uses: ./.github/actions/m5-private-frontend-gate
+        with:
+          expected-commit: ${{ github.sha }}
+      - name: Require fail-closed public source refusal
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ steps.denied.outcome }}' = failure
+          echo M5_PUBLIC_REPOSITORY_FULL_FRONTEND_RUNNER_DENIED_PASS
