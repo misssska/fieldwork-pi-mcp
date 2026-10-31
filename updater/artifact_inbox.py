@@ -149,8 +149,14 @@ def begin(transfer_id: str, size: int, sha256: str) -> dict[str, Any]:
     require(type(sha256) is str and HEX64.fullmatch(sha256) is not None,
             'ARTIFACT_HASH_INVALID')
     base = _dir()
-    require(len([p for p in base.iterdir() if p.is_dir() or p.is_symlink()]) < MAX_TRANSFERS,
-            'INBOX_CAPACITY_REACHED')
+    tombstone = base / ('retired-' + transfer_id + '.json')
+    require(not tombstone.exists() and not tombstone.is_symlink(),
+            'TRANSFER_ID_RETIRED')
+    # Only active 32-hex transfer directories count toward concurrent slots.
+    # Retired transfers retain an immutable tombstone, never a reusable ID.
+    active = [p for p in base.iterdir() if HEX32.fullmatch(p.name)
+              and (p.is_dir() or p.is_symlink())]
+    require(len(active) < MAX_TRANSFERS, 'INBOX_CAPACITY_REACHED')
     root = base / transfer_id
     try:
         root.mkdir(mode=0o700)
