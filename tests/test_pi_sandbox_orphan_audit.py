@@ -49,6 +49,41 @@ class PureClassification(unittest.TestCase):
         self.assertEqual(result["status"],
                          "HISTORICAL_CLEANUP_UNVERIFIED_NO_EXACT_MATCH")
 
+    def test_unclassified_inventory_surfaces_legacy_names_without_false_cleanup(self):
+        old = line(CID, "legacy-container-without-run-marker",
+                   "some.label=1", "exited")
+        production = line(PROD_ID, "fieldwork-api-1",
+                          "com.docker.compose.project=fieldwork",
+                          "running")
+        result = self.parsed(production + old)
+        self.assertEqual(result["candidate_count"], 0)
+        self.assertEqual(result["recognized_compose_project_label_count"], 1)
+        self.assertEqual(result["unclassified_container_count"], 1)
+        self.assertEqual(result["unclassified_container_sample"],
+                         [{"container_id": CID, "state": "exited"}])
+        self.assertFalse(result["unclassified_sample_truncated"])
+        self.assertFalse(result["sandbox_test_retry_authorized"])
+        self.assertFalse(result["historical_cleanup_receipt_resolved"])
+        self.assertNotIn("legacy-container", json.dumps(result))
+
+    def test_unclassified_is_bounded_and_is_not_authority(self):
+        rows = []
+        for i in range(18):
+            cid = format(i, "064x")
+            rows.append(line(cid, "other-" + str(i), "", "created"))
+        result = self.parsed(b"".join(rows))
+        self.assertEqual(result["unclassified_container_count"], 18)
+        self.assertEqual(len(result["unclassified_container_sample"]), 16)
+        self.assertTrue(result["unclassified_sample_truncated"])
+        self.assertFalse(result["container_removal_authorized"])
+
+    def test_known_stage_label_not_listed_as_unknown(self):
+        result = self.parsed(line(CID, "arbitrary-name",
+                           "com.docker.compose.project=fieldwork-stage"))
+        self.assertEqual(result["recognized_compose_project_label_count"], 1)
+        self.assertEqual(result["unclassified_container_count"], 0)
+        self.assertFalse(result["historical_cleanup_receipt_resolved"])
+
     def test_exact_name_run_id_matches_review_only(self):
         result = self.parsed(line(CID, "sandbox-" + FAILED_RUN,
                                   "app=fieldwork", "running"))
