@@ -13,9 +13,9 @@ import hashlib
 SOURCE_PINS = {
     'nginx/default.conf': 'c96b7463d99b1cdb07d4700568374fe958bd8e83a59bf87dc4ee2d6e56762d4c',
     'frontend/src/types.ts': 'f06a55d96c0de2c94f54f5716b927ca6681f0da3022c86ee1191c79c6e651ca2',
-    'frontend/src/components/Documents.tsx': '4ed8947b5620ae02301a20f2b8cabcd97c1319499c13db8df2284f4ca5a22ad0',
+    'frontend/src/components/Documents.tsx': 'a99dd1f32d240bc1540c36e7bb8977f8583b4e328825f815cc3ae7da4524e947',
     'frontend/src/components/DocumentViewer.tsx': 'b1160d91d08edcc00fbb1f617a8b648f17a971869eeac9eac0530fc56c152109',
-    'frontend/src/components/TaskDetail.tsx': '4fbd462ca962eda0fdf5bad560809708f315b9bc68f816a8339dcec38f92f042',
+    'frontend/src/components/TaskDetail.tsx': '2ef173512fc252c6f9229c1812d7ae650b473e97d0340813bb4fc792b5f3c170',
     'frontend/src/api/fieldwork.ts': 'b986944a0622d1a6f1e0f0aecd9da520c499ca8cc9f8f4aba0c11891f764d149',
 }
 
