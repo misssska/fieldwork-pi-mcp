@@ -1037,3 +1037,60 @@ a Pi ZIP bájtjain még nem történt meg, kézi
 secret/licenc/PII review sincs; GitHub privát forrásimport,
 valódi M5 TS/ESLint/Vitest, PostgreSQL és Pi M5 canary
 `NOT_RUN`. Production/staging változatlan.
+
+
+## 25. 2026-11-01 – forrásleltár / M5 R6 integrációs forrásszint-eltérés bizonyítva
+
+**Automatikusan bizonyított, read-only tény:** a 107 fájlos,
+`/opt/fieldwork` aktuális dirty worktree-ből exportált
+`fieldwork-source-20261101-090356.zip` manifest **NEM
+a teljes M4 Stage-v06 snapshot**. A privát
+`misssska/fieldwork-app` repositoryban sikerült a
+107 darab SHA256 pontos lenyomatát **csak
+metaadatként**, alkalmazásforrás nélkül eltárolni:
+[`source-receipts/pi-source-20261101-090356.json`](https://github.com/misssska/fieldwork-app/blob/cfa81c2c538fbcf9e8662e12db688235d030bd1a/source-receipts/pi-source-20261101-090356.json).
+
+A `FieldWork_M5_R6_CI_Compatibility_Fix_20261031.zip`
+valódi `integrate.py` és `launch_canary.sh`
+ellenőrzőjével összevetve:
+- `frontend/src/components/PhotoGallery.tsx` valódi
+  snapshot hash `384315df...bccf2286` **megegyezik**
+  az M5 pinned kiinduló SHA-val;
+- `frontend/src/components/DocumentViewer.test.tsx`
+  `5e802a79...c04d6abef` **megegyezik**;
+- `server/app/models.py` `c59a576d...8e386`,
+  `server/scripts/migrate.py` `a834ff58...7f23e`,
+  `server/app/schema_validation.py`
+  `a0e02395...c1e3` **mind megegyeznek**
+  az integrátor SHA-előfeltételével.
+- Ugyanakkor `server/app/team_api.py`,
+  `docker-compose.stage.yml`,
+  `docker-compose.m4-test-v4.yml`,
+  `.env.stage`,
+  `frontend/src/components/PhotoGalleryM5.test.tsx`,
+  `server/app/photo_comments_api.py` **nincsenek**
+  az exportált Pi gyökérforrásban.
+- Az M5 külön a rögzített
+  `~/.local/state/fieldwork-pi-mcp-v03/stage-v06/parity-m4.d2DIn9Zr`
+  M4 alapot követeli, benne a `server/app/team_api.py`
+  `cf1db461...06e6eabe8` pontos SHA-val.
+  A mentett `FieldWork_Paritas_M4_Team_Canary_20261030.zip`
+  csak 12 fájlos **overlay**, nem maga a teljes M4 snapshot.
+
+**Következmény:** az auditált 107 fájlos
+gyökérforrásra **nem lehet egyszerűen ráhúzni az M5
+R6-ot**, majd ezt teljes M5 release-ként kezelni;
+a privát CI helyesen hiányzó M5 suite-t jelezne.
+Az M4 stage lineage, annak teljes izolált forrásfája,
+majd az M5 overlay és az összes integrációs teszt
+**kötelező külön lépcső**. Valós alkalmazásforrás
+nem került GitHubra és nem futott Pi-host Docker/parancs.
+
+**34 auditjelzés helyben továbbra sem véglegesen
+értékelt:** [egyblokkos SHA-pinnelt helyi triage](https://github.com/misssska/fieldwork-app/blob/8d5482dfeb7994525cff83888ec3775fb7b4e991/docs/PI_SOURCE_FINDINGS_TRIAGE_HU.md)
+kell a tényleges Pi ZIP-hez. Az MCP `fieldwork_stage_capabilities`
+válasza kifejezetten `no_host_shell_tool=true` és
+`no_production_deploy_tool=true`; hoston futó
+ZIP-auditot távolról nem kezdeményezhetünk.
+Forrás import és M5 kiadás továbbra is **BLOCKED**;
+production HTTP 200, meglévő stage egészséges.
