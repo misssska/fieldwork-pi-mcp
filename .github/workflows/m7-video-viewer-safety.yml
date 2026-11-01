@@ -1,0 +1,44 @@
+name: FieldWork M7 video and viewer - offline source-safety (never deploy)
+on:
+  push:
+    branches: [feat/m7-video-viewer-isolated-20261101]
+    paths:
+      - 'updater/m7_video/**'
+      - 'updater/fieldwork_m7_prepare_verified_inbox.py'
+      - 'tests/test_m7_overlay.py'
+      - '.github/workflows/m7-video-viewer-safety.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'updater/m7_video/**'
+      - 'updater/fieldwork_m7_prepare_verified_inbox.py'
+      - 'tests/test_m7_overlay.py'
+      - '.github/workflows/m7-video-viewer-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-source:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Syntax and bytecode compile
+        run: |
+          python -m py_compile updater/m7_video/video_overlay.py updater/m7_video/m7_candidate.py updater/m7_video/test_video_m7.py updater/fieldwork_m7_prepare_verified_inbox.py
+      - name: Guard source overlay negative tests
+        run: python -m unittest discover -s tests -p 'test_m7_overlay.py' -v
+      - name: Scope receipt - offline only
+        run: |
+          echo 'M7_OFFLINE_PATCH_NEGATIVE_GATE=PASS'
+          echo 'M7_PI_NATIVE_FULL_TESTS=NOT_RUN'
+          echo 'M7_18086_OR_18090_NOT_TOUCHED=YES'
