@@ -32,6 +32,19 @@ SOURCE_ROOT_FILES = frozenset({
     'docker-compose.test.yml', 'docker-compose.e2e.yml',
     'docker-compose.override.yml',
 })
+# Only these otherwise excluded, verified project source paths are admitted.
+# Keep this exact list narrow: no wildcard Dockerfile, no extra .github files,
+# no .env.example, and no broad exception for names containing "password".
+ESSENTIAL_EXACT_SOURCE_FILES = frozenset({
+    '.dockerignore',
+    'Dockerfile',
+    '.github/workflows/backend-tests.yml',
+    'nginx/Dockerfile',
+    'server/Dockerfile',
+    'server/Dockerfile.test',
+    'server/alembic/script.py.mako',
+    'server/scripts/rotate_admin_password.py',
+})
 BANNED_PARTS = frozenset({
     '.git', '.env', '.venv', '.ssh', 'node_modules', '__pycache__',
     'dist', 'build', 'storage', 'uploads', 'backup', 'backups', 'secrets',
@@ -74,6 +87,8 @@ def admissible(rel: str) -> bool:
     pp = PurePosixPath(rel)
     if any(p in ('', '.', '..') or p.lower() in BANNED_PARTS for p in pp.parts):
         return False
+    if rel in ESSENTIAL_EXACT_SOURCE_FILES:
+        return True
     if SENSITIVE_BASENAME.search(pp.name):
         return False
     if len(pp.parts) == 1:
