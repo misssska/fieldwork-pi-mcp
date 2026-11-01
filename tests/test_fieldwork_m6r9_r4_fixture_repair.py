@@ -60,6 +60,7 @@ class R4SafetyTests(unittest.TestCase):
         self.assertEqual(modified,SOURCE.replace(b'@example.test',b'@example.com'))
         self.assertEqual(m.sha(modified),m.TESTFILE_AFTER_SHA)
 
+    @unittest.skipUnless(importlib.util.find_spec("email_validator"), "validator not installed in generic updater suite")
     def test_production_email_validator_remains_strict(self):
         from email_validator import EmailSyntaxError, validate_email
         with self.assertRaises(EmailSyntaxError):
