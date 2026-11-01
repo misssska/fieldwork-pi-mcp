@@ -1,0 +1,107 @@
+#!/bin/sh
+# Fixed five-suite execution inside ONE networkless, unprivileged test image.
+# This script never builds an image, fetches dependencies or accesses production.
+set -eu
+export PATH=/opt/fieldwork-test-venv/bin:/usr/lib/postgresql/18/bin:/usr/local/bin:/usr/bin:/bin
+export HOME=/work
+export TMPDIR=/tmp
+umask 077
+
+case "${1-}" in
+  --contract-check)
+    test "$#" -eq 1
+    test -d /opt/fieldwork-test-venv
+    test -d /opt/fieldwork-test/node_modules
+    command -v node >/dev/null
+    command -v npm >/dev/null
+    command -v python3 >/dev/null
+    command -v initdb >/dev/null
+    command -v pg_ctl >/dev/null
+    command -v pytest >/dev/null
+    exit 0
+    ;;
+  frontend-typecheck|frontend-lint|frontend-vitest|frontend-build|backend-pytest-postgres)
+    test "$#" -eq 1
+    ;;
+  *)
+    exit 64
+    ;;
+esac
+
+test "$(id -u)" -ne 0 || exit 65
+test -d /source/frontend || exit 66
+test -d /source/server || exit 66
+test -d /work && test -d /tmp || exit 66
+test ! -e /work/fieldwork-test-started || exit 67
+: > /work/fieldwork-test-started
+
+if [ "$1" != backend-pytest-postgres ]; then
+  # The source is mounted read-only. Only disposable tmpfs receives test
+  # intermediates. Dependency tree is from the approved immutable image.
+  mkdir -m 700 /work/frontend
+  cp -R /source/frontend/. /work/frontend/
+  test ! -e /work/frontend/node_modules || exit 68
+  ln -s /opt/fieldwork-test/node_modules /work/frontend/node_modules
+  cd /work/frontend
+  case "$1" in
+    frontend-typecheck) exec npm run typecheck ;;
+    frontend-lint)      exec npm run lint ;;
+    frontend-vitest)    exec npm test ;;
+    frontend-build)     exec npm run build ;;
+  esac
+fi
+
+# PostgreSQL 18 runs INSIDE this one disposable test container. It binds only
+# 127.0.0.1 on an isolated --network=none namespace, not a host port/volume.
+# Docker supplies the host UID/GID to read private stage files; nss_wrapper
+# provides a getpwuid entry so initdb accepts that non-root numeric UID.
+uid="$(id -u)"
+gid="$(id -g)"
+printf 'canary:x:%s:%s:Canary Test:/work:/bin/sh\n' "$uid" "$gid" > /work/passwd
+printf 'canary:x:%s:\n' "$gid" > /work/group
+export NSS_WRAPPER_PASSWD=/work/passwd
+export NSS_WRAPPER_GROUP=/work/group
+# Debian multiarch paths cover Raspberry Pi aarch64 and amd64 CI lab.
+nss_lib=""
+for candidate in /usr/lib/aarch64-linux-gnu/libnss_wrapper.so /usr/lib/x86_64-linux-gnu/libnss_wrapper.so; do
+  if [ -f "$candidate" ]; then nss_lib="$candidate"; break; fi
+done
+test -n "$nss_lib" || exit 69
+export LD_PRELOAD="$nss_lib"
+
+mkdir -m 700 /work/pgdata /work/pgsocket /work/storage
+initdb -D /work/pgdata -A trust --no-instructions --encoding=UTF8 --locale=C >/dev/null 2>&1
+# Unix socket lives in tmpfs; TCP still bound to loopback for FieldWork's
+# strict database guard (host must be localhost / 127.0.0.1).
+pg_ctl -D /work/pgdata -o "-c listen_addresses=127.0.0.1 -c port=55432 -c unix_socket_directories=/work/pgsocket" -w start >/dev/null 2>&1
+shutdown_pg() { pg_ctl -D /work/pgdata -m immediate -w stop >/dev/null 2>&1 || :; }
+trap shutdown_pg EXIT HUP INT TERM
+createdb -h 127.0.0.1 -p 55432 -U canary fieldwork_test
+
+export FIELDWORK_TESTING=1
+# FieldWork's test_database_guard intentionally denies an already-present
+# application DATABASE_URL equal to the test URL. This is a security feature.
+# The real conftest calls configure_test_database(), which reads the distinct
+# FIELDWORK_TEST_DATABASE_URL then populates DATABASE_URL only after checking
+# the host, database name, test flag, and production/test separation.
+# Any inherited DATABASE_URL is a security hazard even inside a fixture.
+if [ "${DATABASE_URL+x}" ]; then
+  echo "REFUSING_INHERITED_APP_DATABASE_URL" >&2
+  exit 70
+fi
+export FIELDWORK_TEST_DATABASE_URL="postgresql+psycopg://canary@127.0.0.1:55432/fieldwork_test"
+export ADMIN_EMAIL="admin@example.com"
+export ADMIN_PASSWORD="canary-test-only-password-not-for-production"
+export JWT_SECRET="canary-test-only-jwt-secret-not-for-production"
+export STORAGE_ROOT=/tmp/fieldwork-storage
+mkdir -m 700 /tmp/fieldwork-storage
+# The pinned stage is immutable. Work only from an ephemeral copy so
+# pytest (including migration fixtures) can create local cache/artifacts
+# without attempting to write into the read-only source mount.
+# The materializer excludes all .env secrets from stage source.
+mkdir -m 700 /work/server
+cp -R /source/server/. /work/server/
+test ! -e /work/server/.env || exit 71
+cd /work/server
+export PYTHONDONTWRITEBYTECODE=1
+pytest -q -p no:cacheprovider

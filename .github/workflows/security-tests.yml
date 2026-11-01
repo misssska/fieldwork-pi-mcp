@@ -19,3 +19,27 @@ jobs:
         run: PYTHONPATH=bootstrap python -m unittest discover -s bootstrap/tests -p 'test_*.py' -v
       - name: Compile updater, bootstrap and experimental candidates
         run: python -m compileall -q updater bootstrap experimental
+      - name: Print immutable activation bootstrap SHA256
+        run: sha256sum updater/activate_once.py
+      - name: Print SHA256 of reviewed local artifact extension v2
+        run: sha256sum updater/activate_artifact_extension_v2.py
+      - name: Print SHA256 of single-shot read-only Pi host auditor
+        run: sha256sum updater/pi_sandbox_orphan_audit.py
+      - name: Print pinned M12 module SHA256 inventory
+        run: sha256sum updater/mcp_self_diagnostics.py updater/mcp_self_service_overlay.py updater/sandbox_cleanup_overlay.py
+      - name: Print one-time self-service M12 installer SHA256
+        run: sha256sum updater/mcp_self_service_activate.py
+      - name: Print M13 Linux MCP telemetry and overlay SHA256 pins
+        run: sha256sum updater/linux_telemetry.py updater/mcp_linux_telemetry.py updater/mcp_linux_telemetry_overlay.py
+      - name: Print M13 pinned single-approval installer SHA256
+        run: sha256sum updater/mcp_linux_telemetry_activate.py
+      - name: Print M14 portable update gate and recovery SHA256 inventory
+        run: sha256sum updater/linux_upgrade_gate.py updater/linux_upgrade_inbox.py updater/linux_upgrade_local_transaction.py
+      - name: Print M14B browser approval UI and local handoff SHA256
+        run: sha256sum updater/linux_upgrade_review_ui.py updater/linux_upgrade_local_handoff.py
+      - name: Print M14C separated Linux operator and trust preflight SHA256
+        run: sha256sum updater/linux_upgrade_trust_gate.py updater/linux_upgrade_operator_app.py updater/linux_upgrade_review_ui.py deploy/systemd/linux-mcp-operator.service
+      - name: Print M14E stage lifecycle exact pinned SHA256
+        run: sha256sum updater/linux_stage_existing_lifecycle.py
+      - name: Pin M14F stage Compose and sandbox ownership SHA256
+        run: sha256sum updater/linux_stage_compose_contract.py updater/linux_sandbox_ownership_gate.py

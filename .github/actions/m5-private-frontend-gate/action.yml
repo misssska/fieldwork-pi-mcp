@@ -1,0 +1,65 @@
+name: FieldWork M5 private full frontend CI gate
+description: Verify exact private commit, run all trusted frontend tests and build, and refuse silent module gaps.
+inputs:
+  expected-commit:
+    description: Exact caller repository commit, not a branch name
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate private hosted-runner source, lockfile and test inventory
+      shell: bash
+      env:
+        M5_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        M5_EXPECTED_COMMIT: ${{ inputs.expected-commit }}
+      run: |
+        set -euo pipefail
+        python3 "${{ github.action_path }}/../../../updater/m5_private_frontend_gate.py" \
+          preflight "$GITHUB_WORKSPACE" "$M5_EXPECTED_COMMIT" "$RUNNER_TEMP/m5-ci-receipt.json"
+    - name: Set up fixed Node 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+    - name: Install exact frontend dependency lock without lifecycle scripts
+      shell: bash
+      working-directory: frontend
+      run: |
+        set -euo pipefail
+        npm ci --ignore-scripts --no-audit --no-fund
+    - name: Strict TypeScript check
+      shell: bash
+      working-directory: frontend
+      run: |
+        set -euo pipefail
+        npm run typecheck
+    - name: ESLint check
+      shell: bash
+      working-directory: frontend
+      run: |
+        set -euo pipefail
+        npm run lint
+    - name: Real complete Vitest execution
+      shell: bash
+      working-directory: frontend
+      run: |
+        set -euo pipefail
+        CI=true NO_COLOR=1 npm test -- --reporter=default > "$RUNNER_TEMP/m5-frontend-test.log" 2>&1 || {
+          tail -n 120 "$RUNNER_TEMP/m5-frontend-test.log"
+          exit 1
+        }
+        tail -n 20 "$RUNNER_TEMP/m5-frontend-test.log"
+    - name: Production frontend build (no release)
+      shell: bash
+      working-directory: frontend
+      run: |
+        set -euo pipefail
+        npm run build
+    - name: Compare Vitest modules with exact private source manifest
+      shell: bash
+      env:
+        M5_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        M5_EXPECTED_COMMIT: ${{ inputs.expected-commit }}
+      run: |
+        set -euo pipefail
+        python3 "${{ github.action_path }}/../../../updater/m5_private_frontend_gate.py" \
+          postflight "$GITHUB_WORKSPACE" "$M5_EXPECTED_COMMIT" "$RUNNER_TEMP/m5-ci-receipt.json"

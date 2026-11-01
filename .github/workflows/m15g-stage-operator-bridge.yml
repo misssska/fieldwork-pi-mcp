@@ -1,0 +1,37 @@
+name: M15G operator-only existing-stage bridge (CI only)
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/linux_m15g_stage_operator_bridge.py
+      - updater/linux_stage_existing_lifecycle.py
+      - tests/test_linux_m15g_stage_operator_bridge.py
+      - .github/workflows/m15g-stage-operator-bridge.yml
+  pull_request:
+    paths:
+      - updater/linux_m15g_stage_operator_bridge.py
+      - updater/linux_stage_existing_lifecycle.py
+      - tests/test_linux_m15g_stage_operator_bridge.py
+      - .github/workflows/m15g-stage-operator-bridge.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: m15g-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  isolated-stage:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage rollback and OS-UID checks with fake Docker
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_linux_m15g_stage_operator_bridge.py' -v
+          python3 -m compileall -q updater/linux_m15g_stage_operator_bridge.py
+          echo M15G_DISPOSABLE_FAKE_DOCKER_ONLY_NO_PI_ACTIVATION

@@ -1,0 +1,50 @@
+name: M15D native self privilege evidence, not Pi audit
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/linux_host_privilege_preflight.py
+      - tests/test_linux_host_privilege_preflight.py
+      - .github/workflows/m15d-native-self-audit.yml
+  pull_request:
+    paths:
+      - updater/linux_host_privilege_preflight.py
+      - tests/test_linux_host_privilege_preflight.py
+      - .github/workflows/m15d-native-self-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m15d-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-self-evidence:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit negative contracts and real self-only evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_linux_host_privilege_preflight.py' -v
+          python3 -m updater.linux_host_privilege_preflight > "$RUNNER_TEMP/self.json"
+          python3 - "$RUNNER_TEMP/self.json" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1], encoding="utf8"))
+          assert data["scope"] == "INVOKING_PROCESS_ONLY"
+          assert data["activation_authorized"] is False
+          assert data["privilege_separation_verified"] is False
+          assert data["host_modified"] is False
+          assert data["sudo_policy"] == "NOT_AUDITED"
+          assert data["inherited_file_descriptors"] == "NOT_AUDITED"
+          print("M15D_NATIVE_LOCAL_SELF_EVIDENCE_ONLY_PASS")
+          print("M15D_NOT_PI_AUDIT_NOT_RELEASE_APPROVAL")
+          PY

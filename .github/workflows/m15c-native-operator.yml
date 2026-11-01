@@ -1,0 +1,152 @@
+name: M15C native separate-UID operator runtime acceptance
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - tests/native_m15c_operator_acceptance.py
+      - tests/test_linux_upgrade_review_ui.py
+      - deploy/systemd/linux-mcp-operator.service
+      - updater/linux_upgrade_operator_app.py
+      - updater/linux_upgrade_review_ui.py
+      - updater/linux_upgrade_gate.py
+      - updater/m15_*.py
+      - .github/workflows/m15c-native-operator.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: m15c-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-operator:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package the immutable-source candidate without host changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          test ! -e /opt/linux-mcp-operator
+          test ! -e /var/lib/linux-mcp-operator
+          python3 -m unittest discover -s tests -p 'test_m15_*.py' -v
+          python3 -m updater.m15_portable_bundle \
+            --source-root "$GITHUB_WORKSPACE" --commit "$GITHUB_SHA" \
+            --out "$RUNNER_TEMP/m15c-candidate.tar.gz"
+      - name: Disposable local bootstrap and separate non-root runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This root operation is restricted to disposable GitHub runners.
+          # No Pi, live service, remote Docker, tunnel or production changes.
+          sudo chown root:root /opt
+          sudo chmod go-w /opt
+          sudo env M15C_ARCHIVE="$RUNNER_TEMP/m15c-candidate.tar.gz" \
+             M15C_COMMIT="$GITHUB_SHA" python3 -s - <<'PY'
+          import os
+          from pathlib import Path
+          from updater import m15_portable_bundle as b
+          from updater import m15_inactive_bootstrap as bootstrap
+          raw=Path(os.environ["M15C_ARCHIVE"]).read_bytes()
+          proof=bootstrap.install_inactive(
+              raw, trusted_sha=b.sha(raw),
+              trusted_commit=os.environ["M15C_COMMIT"],
+              local_admin_approval=True)
+          assert proof["status"] == "M15B_INSTALLED_INACTIVE"
+          assert proof["service_started"] is False
+          assert proof["update_capability_enabled"] is False
+          print("M15C_ROOT_OWNED_INACTIVE_FILES_READY")
+          PY
+          sudo env GITHUB_ACTIONS=true \
+            M15C_COMMIT="$GITHUB_SHA" M15C_REMOTE_UID="$(id -u)" \
+            python3 -s tests/native_m15c_operator_acceptance.py
+          # Native systemd acceptance: ephemeral runtime unit on GitHub
+          # runner ONLY. The original reference unit is unchanged and
+          # nothing is installed to /etc/systemd or the real Pi.
+          test ! -e /run/systemd/system/m15c-operator-smoke.service
+          # Actual dedicated service user, not the special shared nobody UID.
+          sudo useradd --system --user-group --no-create-home \
+            --shell /usr/sbin/nologin linux-mcp-operator
+          sudo chown -R linux-mcp-operator:linux-mcp-operator /var/lib/linux-mcp-operator
+          sudo runuser -u linux-mcp-operator -- /usr/bin/python3 -s \
+             /opt/linux-mcp-operator/linux_upgrade_operator_app.py --check
+          echo "M15C_DEDICATED_ACCOUNT_DIRECT_PREFLIGHT_PASS"
+          sudo install -m 0644 deploy/systemd/linux-mcp-operator.service \
+            /run/systemd/system/m15c-operator-smoke.service
+          cleanup_m15c() {
+            sudo systemctl stop m15c-operator-smoke.service >/dev/null 2>&1 || true
+            sudo rm -f /run/systemd/system/m15c-operator-smoke.service
+            sudo systemctl daemon-reload >/dev/null
+          }
+          trap cleanup_m15c EXIT
+          sudo systemd-analyze verify /run/systemd/system/m15c-operator-smoke.service
+          sudo systemctl daemon-reload
+          if ! sudo systemctl start m15c-operator-smoke.service; then
+            sudo systemctl status --no-pager m15c-operator-smoke.service || true
+            sudo journalctl -u m15c-operator-smoke.service --no-pager -n 30 || true
+            exit 1
+          fi
+          sudo systemctl is-active --quiet m15c-operator-smoke.service
+          test ! -r /var/lib/linux-mcp-operator/operator_token.key
+          sudo python3 -s - <<'PY'
+          from pathlib import Path
+          import base64
+          import time
+          from urllib.error import HTTPError
+          from urllib.request import Request, ProxyHandler, build_opener
+          url="http://127.0.0.1:8767/"
+          opener=build_opener(ProxyHandler({}))
+          for _ in range(40):
+              try:
+                  opener.open(url,timeout=0.5)
+              except HTTPError as exc:
+                  if exc.code==401:
+                      break
+              except OSError:
+                  time.sleep(.1)
+          else:
+              import subprocess
+              subprocess.run(["systemctl", "status", "--no-pager",
+                              "m15c-operator-smoke.service"], check=False)
+              subprocess.run(["journalctl", "-u", "m15c-operator-smoke.service",
+                              "--no-pager", "-n", "40"], check=False)
+              raise AssertionError("M15C_SYSTEMD_LOCAL_AUTH_NOT_READY")
+          credential=Path("/var/lib/linux-mcp-operator/operator_token.key").read_bytes()
+          token=base64.b64encode(b"operator:"+credential).decode("ascii")
+          with opener.open(Request(url,headers={"Authorization":"Basic "+token}),timeout=2) as res:
+              data=res.read()
+              assert res.status==200 and b"fieldwork_mcp.py" in data
+              assert credential not in data
+          print("M15C_HARDENED_SYSTEMD_LOOPBACK_401_200_PASS")
+          PY
+          sudo systemctl stop m15c-operator-smoke.service
+          test "$(systemctl is-active m15c-operator-smoke.service || true)" = inactive
+          echo "M15C_HARDENED_SYSTEMD_START_STOP_PASS"
+          cleanup_m15c
+          trap - EXIT
+          # The exact inactive-root rollback must still be possible.
+          sudo env M15C_ARCHIVE="$RUNNER_TEMP/m15c-candidate.tar.gz" \
+             M15C_COMMIT="$GITHUB_SHA" python3 -s - <<'PY'
+          import os
+          from pathlib import Path
+          from updater import m15_portable_bundle as b
+          from updater import m15_inactive_bootstrap as bootstrap
+          raw=Path(os.environ["M15C_ARCHIVE"]).read_bytes()
+          r=bootstrap.rollback_inactive(
+              trusted_sha=b.sha(raw),trusted_commit=os.environ["M15C_COMMIT"],
+              local_admin_approval=True)
+          assert r["status"]=="M15B_INACTIVE_BOOTSTRAP_ROLLED_BACK"
+          assert not Path("/opt/linux-mcp-operator").exists()
+          print("M15C_EXACT_BOOTSTRAP_ROLLBACK_PASS")
+          PY
+          # This smoke is direct Linux user runtime, NOT systemd enablement.
+          test ! -e /etc/systemd/system/linux-mcp-operator.service
+          test ! -e /run/linux-mcp-docker-proxy.sock
+          echo "M15C_NO_SYSTEMD_ENABLE_OR_DOCKER_ACCESS_PASS"

@@ -1,0 +1,63 @@
+name: M15F local pinned PID host privilege audit (not Pi install)
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/linux_m15f_host_boundary_audit.py
+      - updater/linux_host_privilege_preflight.py
+      - tests/test_linux_m15f_host_boundary_audit.py
+      - .github/workflows/m15f-native-host-audit.yml
+  pull_request:
+    paths:
+      - updater/linux_m15f_host_boundary_audit.py
+      - updater/linux_host_privilege_preflight.py
+      - tests/test_linux_m15f_host_boundary_audit.py
+      - .github/workflows/m15f-native-host-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: m15f-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-audit:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline negative contracts on the actual native arch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_linux_m15f_host_boundary_audit.py' -v
+          python3 -m compileall -q updater/linux_m15f_host_boundary_audit.py
+      - name: Native kernel target PID/starttime binding, no privileges needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from updater import linux_m15f_host_boundary_audit as a
+          pid=os.getpid()
+          raw=a._read_proc(Path("/proc")/str(pid)/"stat", a.MAX_STAT)
+          start=a.starttime_from_stat(raw,pid)
+          report=a.collect_local(pid=pid,expected_uid=os.geteuid(),expected_starttime=start)
+          assert report["status"]=="HOST_BOUNDARY_AUDIT_INCOMPLETE"
+          assert report["target"]["pid"]==pid
+          assert report["target"]["starttime_ticks"]==start
+          assert report["isolation_verified"] is False
+          assert report["safe_to_revoke_legacy_docker_access"] is False
+          assert report["safe_to_install_operator_secret"] is False
+          assert report["production_deployment_authorized"] is False
+          assert report["host_writes"] is False
+          print("M15F_NATIVE_PID_STARTTIME_KERNEL_OBSERVATION_PASS")
+          print("M15F_NO_PI_AUDIT_NO_PRIVILEGE_CUTOVER")
+          PY

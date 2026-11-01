@@ -1,0 +1,47 @@
+name: FieldWork M5 R8 – verified local Pi launcher native security contract
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/fieldwork_m5r8_launch_verified_inbox.py
+      - tests/test_fieldwork_m5r8_verified_inbox_native.py
+      - .github/workflows/fieldwork-m5r8-local-inbox.yml
+  pull_request:
+    paths:
+      - updater/fieldwork_m5r8_launch_verified_inbox.py
+      - tests/test_fieldwork_m5r8_verified_inbox_native.py
+      - .github/workflows/fieldwork-m5r8-local-inbox.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  r8-native-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify pinned local launcher and test source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'c3f62ae10aea95c729db2831caf64ef97770ee9304ca25c9de40cc70a75d29f8  updater/fieldwork_m5r8_launch_verified_inbox.py' | sha256sum --check
+          echo '373114d6ba1c3033758d48d6deaf93b56e967d006fe730a05b12049bd035f3ac  tests/test_fieldwork_m5r8_verified_inbox_native.py' | sha256sum --check
+          python3 -m py_compile updater/fieldwork_m5r8_launch_verified_inbox.py
+      - name: Native 18 negative/positive synthetic R8-local security contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_fieldwork_m5r8_verified_inbox_native.py' -v > "$RUNNER_TEMP/m5r8-contract.log" 2>&1 || {
+            tail -n 100 "$RUNNER_TEMP/m5r8-contract.log"
+            exit 1
+          }
+          tail -n 15 "$RUNNER_TEMP/m5r8-contract.log"
+          grep -Eq 'Ran 18 tests in [0-9.]+' "$RUNNER_TEMP/m5r8-contract.log"
+          grep -q '^OK$' "$RUNNER_TEMP/m5r8-contract.log"
+          echo FIELDWORK_R8_LOCAL_ADMIN_LAUNCHER_18_NATIVE_TESTS_PASS

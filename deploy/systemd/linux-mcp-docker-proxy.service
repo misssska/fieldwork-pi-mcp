@@ -1,0 +1,45 @@
+# M14D REFERENCE ONLY, NOT ENABLED ON REAL PI.
+# IMPORTANT: linux-mcp-docker-helper with docker group remains effectively
+# HOST-ROOT EQUIVALENT on rootful Docker; never grant remote MCP that group.
+# External approval HMAC and operator UI must live in another OS identity.
+[Unit]
+Description=Privileged read-only Docker data projector (local AF_UNIX only)
+Documentation=https://github.com/misssska/fieldwork-pi-mcp
+Requires=linux-mcp-docker-proxy.socket
+After=local-fs.target
+
+[Service]
+Type=simple
+User=linux-mcp-docker-helper
+Group=linux-mcp-docker-helper
+SupplementaryGroups=docker
+UMask=0077
+WorkingDirectory=/
+ExecStart=/usr/bin/python3 /opt/linux-mcp-docker-proxy/linux_docker_read_proxy_service.py
+Environment=PYTHONNOUSERSITE=1
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectProc=invisible
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+SystemCallArchitectures=native
+LimitNOFILE=128
+MemoryMax=128M
+TasksMax=64
+TimeoutStartSec=30s

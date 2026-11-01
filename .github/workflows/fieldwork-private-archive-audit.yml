@@ -1,0 +1,49 @@
+name: FieldWork private archive pre-import audit – synthetic tests only
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/fieldwork_private_archive_audit.py
+      - tests/test_fieldwork_private_archive_audit.py
+      - .github/workflows/fieldwork-private-archive-audit.yml
+  pull_request:
+    paths:
+      - updater/fieldwork_private_archive_audit.py
+      - tests/test_fieldwork_private_archive_audit.py
+      - .github/workflows/fieldwork-private-archive-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fieldwork-private-archive-audit-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  archive-audit-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Source integrity SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '86a1e4dc8edf86e41ea39e57f78ccd31e26864c8d70cbe7b0775f421a530ad4e  updater/fieldwork_private_archive_audit.py' | sha256sum --check
+          echo '77dc63c0ac6a1e25b051634cf6e481f0a6e61d96ac69a645f7c69a254dd4b0eb  tests/test_fieldwork_private_archive_audit.py' | sha256sum --check
+      - name: Bounded synthetic ZIP contract tests, no private app source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_fieldwork_private_archive_audit.py' -v > "$RUNNER_TEMP/fieldwork-audit-tests.log" 2>&1 || {
+            tail -n 120 "$RUNNER_TEMP/fieldwork-audit-tests.log"
+            exit 1
+          }
+          tail -n 20 "$RUNNER_TEMP/fieldwork-audit-tests.log"
+          grep -Eq 'Ran 15 tests in [0-9.]+' "$RUNNER_TEMP/fieldwork-audit-tests.log"
+          grep -q '^OK$' "$RUNNER_TEMP/fieldwork-audit-tests.log"
+          echo FIELDWORK_SOURCE_ARCHIVE_AUDITOR_15_NATIVE_TESTS_PASS

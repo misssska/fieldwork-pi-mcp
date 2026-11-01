@@ -1,0 +1,105 @@
+name: M10 orphan audit real Docker read-only smoke (synthetic host)
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/pi_sandbox_orphan_audit.py
+      - tests/test_pi_sandbox_orphan_audit.py
+      - .github/workflows/m10-docker-orphan-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m10-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-docker-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build a controlled, isolated Docker inventory on CI host
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          docker info --format '{{.ServerVersion}}' >/dev/null
+          docker pull alpine:3.21 >/dev/null
+          run_id=0123456789abcdef0123456789abcdef
+          other_id=fedcba9876543210fedcba9876543210
+          one="m10-ci-${run_id}"
+          two="m10-ci-unrelated-${other_id}"
+          cleanup() {
+            docker container rm -f "$one" "$two" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker container create --network=none --name "$one" \
+            --label "fieldwork.m10.run_id=$run_id" \
+            --label "fieldwork.m10.synthetic=1" \
+            alpine:3.21 sleep 120 >/dev/null
+          docker container create --network=none --name "$two" \
+            --label "fieldwork.m10.run_id=$other_id" \
+            --label "fieldwork.m10.synthetic=1" \
+            alpine:3.21 sleep 120 >/dev/null
+          expected="$(docker container inspect --format '{{.Id}}' "$one")"
+          export M10_RUN_ID="$run_id" M10_OTHER_ID="$other_id" M10_EXPECTED_ID="$expected"
+          python3 - <<'PY'
+          import json
+          import os
+          from updater import pi_sandbox_orphan_audit as audit
+
+          run_id = os.environ["M10_RUN_ID"]
+          other_id = os.environ["M10_OTHER_ID"]
+          expected = os.environ["M10_EXPECTED_ID"]
+
+          result = audit.inspect_host(run_id)
+          assert result["status"] == "HISTORICAL_ORPHAN_CANDIDATE_FOUND_REVIEW_REQUIRED", result["status"]
+          assert result["candidate_count"] == 1, result["candidate_count"]
+          assert result["candidates"][0]["container_id"] == expected
+          assert result["candidates"][0]["state"] == "created"
+          assert not result["historical_cleanup_receipt_resolved"]
+          assert not result["sandbox_test_retry_authorized"]
+          assert not result["container_removal_authorized"]
+          assert not result["host_modified"]
+          assert not result["production_modified"]
+
+          negative = audit.inspect_host("a" * 32)
+          assert negative["candidate_count"] == 0
+          assert negative["status"] == "HISTORICAL_CLEANUP_UNVERIFIED_NO_EXACT_MATCH"
+          assert not negative["historical_cleanup_receipt_resolved"]
+          assert not negative["sandbox_test_retry_authorized"]
+
+          second = audit.inspect_host(other_id)
+          assert second["candidate_count"] == 1
+          assert second["candidates"][0]["container_id"] != expected
+          assert not second["container_removal_authorized"]
+          output = json.dumps(result)
+          assert "fieldwork.m10.run_id=" not in output
+          assert "m10-ci-" not in output
+          print("M10_REAL_DOCKER_HOST_READONLY_AUDIT_PASS")
+          print("M10_CANDIDATES_PRESENT_BUT_NOT_CLEARED_PASS")
+          print("M10_ZERO_MATCH_CANNOT_CLEAR_HISTORICAL_FAILURE_PASS")
+          PY
+          test "$(docker container inspect --format '{{.State.Status}}' "$one")" = created
+          test "$(docker container inspect --format '{{.State.Status}}' "$two")" = created
+          echo "M10_AUDITOR_DID_NOT_MUTATE_CONTAINERS_PASS"
+          # Execute the exact one-shot operator CLI, not just an imported
+          # function. Its pinned historical run cannot match our synthetic IDs.
+          python3 updater/pi_sandbox_orphan_audit.py > "$RUNNER_TEMP/m10-cli-result.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from updater.pi_sandbox_orphan_audit import HISTORICAL_FAILED_RUN
+          data = json.loads((Path(os.environ["RUNNER_TEMP"]) / "m10-cli-result.json").read_text())
+          assert data["run_id"] == HISTORICAL_FAILED_RUN
+          assert data["candidate_count"] == 0
+          assert data["status"] == "HISTORICAL_CLEANUP_UNVERIFIED_NO_EXACT_MATCH"
+          assert data["historical_cleanup_receipt_resolved"] is False
+          assert data["sandbox_test_retry_authorized"] is False
+          assert data["container_removal_authorized"] is False
+          print("M10_ONE_SHOT_CLI_REAL_DOCKER_FAIL_CLOSED_PASS")
+          PY

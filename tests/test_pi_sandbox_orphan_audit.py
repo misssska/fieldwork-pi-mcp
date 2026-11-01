@@ -1,0 +1,303 @@
+"""M10 negative-first host orphan inventory tests, with Docker fully mocked."""
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import unittest
+from unittest.mock import patch
+
+from updater import pi_sandbox_orphan_audit as audit
+
+FAILED_RUN = "b901aaabbbcccdddeeefff0000000020"
+CID = "a" * 64
+PROD_ID = "b" * 64
+
+
+def line(id=CID, name="fieldwork-api-1", labels="", state="running"):
+    return json.dumps({"ID": id, "Names": name,
+                       "Labels": labels, "State": state}).encode() + b"\n"
+
+
+class PureClassification(unittest.TestCase):
+    def parsed(self, payload=b"", run_id=FAILED_RUN, failed=True):
+        return audit.classify_inventory(
+            payload, run_id, historical_cleanup_failed=failed)
+
+    def denied(self, payload, error):
+        with self.assertRaisesRegex(audit.HostAuditDenied, error):
+            self.parsed(payload)
+
+    def test_empty_inventory_never_clears_prior_cleanup_failure(self):
+        result = self.parsed()
+        self.assertEqual(result["status"],
+                         "HISTORICAL_CLEANUP_UNVERIFIED_NO_EXACT_MATCH")
+        self.assertEqual(result["inventory_container_count"], 0)
+        self.assertEqual(result["candidate_count"], 0)
+        self.assertFalse(result["historical_cleanup_receipt_resolved"])
+        self.assertFalse(result["sandbox_test_retry_authorized"])
+        self.assertFalse(result["container_removal_authorized"])
+        self.assertFalse(result["production_modified"])
+
+    def test_unrelated_production_and_stage_are_not_classified(self):
+        result = self.parsed(line(PROD_ID, "fieldwork-api-1",
+                                  "com.docker.compose.project=fieldwork") +
+                             line(CID, "fieldwork-stage-db-1",
+                                  "com.docker.compose.project=fieldwork-stage"))
+        self.assertEqual(result["inventory_container_count"], 2)
+        self.assertEqual(result["candidate_count"], 0)
+        self.assertEqual(result["status"],
+                         "HISTORICAL_CLEANUP_UNVERIFIED_NO_EXACT_MATCH")
+
+    def test_unclassified_inventory_surfaces_legacy_names_without_false_cleanup(self):
+        old = line(CID, "legacy-container-without-run-marker",
+                   "some.label=1", "exited")
+        production = line(PROD_ID, "fieldwork-api-1",
+                          "com.docker.compose.project=fieldwork",
+                          "running")
+        result = self.parsed(production + old)
+        self.assertEqual(result["candidate_count"], 0)
+        self.assertEqual(result["recognized_compose_project_label_count"], 1)
+        self.assertEqual(result["unclassified_container_count"], 1)
+        self.assertEqual(result["unclassified_container_sample"],
+                         [{"container_id": CID, "state": "exited"}])
+        self.assertFalse(result["unclassified_sample_truncated"])
+        self.assertFalse(result["sandbox_test_retry_authorized"])
+        self.assertFalse(result["historical_cleanup_receipt_resolved"])
+        self.assertNotIn("legacy-container", json.dumps(result))
+
+    def test_unclassified_is_bounded_and_is_not_authority(self):
+        rows = []
+        for i in range(18):
+            cid = format(i, "064x")
+            rows.append(line(cid, "other-" + str(i), "", "created"))
+        result = self.parsed(b"".join(rows))
+        self.assertEqual(result["unclassified_container_count"], 18)
+        self.assertEqual(len(result["unclassified_container_sample"]), 16)
+        self.assertTrue(result["unclassified_sample_truncated"])
+        self.assertFalse(result["container_removal_authorized"])
+
+    def test_known_stage_label_not_listed_as_unknown(self):
+        result = self.parsed(line(CID, "arbitrary-name",
+                           "com.docker.compose.project=fieldwork-stage"))
+        self.assertEqual(result["recognized_compose_project_label_count"], 1)
+        self.assertEqual(result["unclassified_container_count"], 0)
+        self.assertFalse(result["historical_cleanup_receipt_resolved"])
+
+    def test_exact_name_run_id_matches_review_only(self):
+        result = self.parsed(line(CID, "sandbox-" + FAILED_RUN,
+                                  "app=fieldwork", "running"))
+        self.assertEqual(result["status"],
+                         "HISTORICAL_ORPHAN_CANDIDATE_FOUND_REVIEW_REQUIRED")
+        self.assertEqual(result["candidate_count"], 1)
+        self.assertEqual(result["candidates"][0]["container_id"], CID)
+        self.assertEqual(result["candidates"][0]["match_type"], "name")
+        self.assertEqual(result["candidates"][0]["state"], "running")
+        self.assertFalse(result["container_removal_authorized"])
+        self.assertFalse(result["historical_cleanup_receipt_resolved"])
+
+    def test_exact_label_value_matches_review_only(self):
+        result = self.parsed(line(CID, "some-other-name",
+                                  "com.example.run_id=" + FAILED_RUN,
+                                  "exited"))
+        self.assertEqual(result["candidate_count"], 1)
+        self.assertEqual(result["candidates"][0]["match_type"], "label")
+        self.assertEqual(result["candidates"][0]["state"], "exited")
+
+    def test_partial_id_does_not_match(self):
+        self.assertEqual(self.parsed(line(CID, "sandbox-"+FAILED_RUN[:-1]))[
+                         "candidate_count"], 0)
+        self.assertEqual(self.parsed(line(CID, "sandbox-"+FAILED_RUN+"a"))[
+                         "candidate_count"], 0)
+        self.assertEqual(self.parsed(line(CID, "sandbox-a"+FAILED_RUN))[
+                         "candidate_count"], 0)
+
+    def test_multiple_candidates_are_not_silently_collapsed(self):
+        value = self.parsed(line(CID, "sandbox-"+FAILED_RUN) +
+                            line(PROD_ID, "some-label",
+                                 "runid="+FAILED_RUN))
+        self.assertEqual(value["candidate_count"], 2)
+        self.assertEqual(len(value["candidates"]), 2)
+        self.assertFalse(value["container_removal_authorized"])
+
+    def test_never_exposes_raw_name_or_labels(self):
+        r = self.parsed(line(CID, "secret-identifier-"+FAILED_RUN,
+                             "password=arbitrary-opaque-secret,runid="+FAILED_RUN))
+        rendered = json.dumps(r)
+        self.assertNotIn("password", rendered)
+        self.assertNotIn("arbitrary-opaque", rendered)
+        self.assertNotIn("secret-identifier", rendered)
+        self.assertNotIn("Labels", rendered)
+        self.assertTrue(r["inventory_sha256"])
+
+    def test_production_name_spoofed_with_run_id_is_not_delete_permission(self):
+        r = self.parsed(line(CID, "fieldwork-api-"+FAILED_RUN,
+                             "com.docker.compose.project=fieldwork"))
+        self.assertEqual(r["candidate_count"], 1)
+        self.assertFalse(r["container_removal_authorized"])
+        self.assertFalse(r["sandbox_test_retry_authorized"])
+
+    def test_nonhex_run_id_denied(self):
+        for bad in (None, "", "x"*32, FAILED_RUN+"a", "aa", "../../etc"):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(
+                        audit.HostAuditDenied, "AUDIT_RUN_ID_INVALID"):
+                    self.parsed(run_id=bad)
+
+    def test_prior_receipt_is_required(self):
+        with self.assertRaisesRegex(
+                audit.HostAuditDenied,
+                "AUDIT_HISTORICAL_CLEANUP_RECEIPT_REQUIRED"):
+            self.parsed(failed=False)
+
+    def test_invalid_json_denied(self):
+        self.denied(b"not a json object\n", "AUDIT_OUTPUT_INVALID")
+
+    def test_json_array_denied(self):
+        self.denied(b"[]\n", "AUDIT_DOCKER_OUTPUT_SCHEMA_DENIED")
+
+    def test_shortened_docker_id_denied(self):
+        self.denied(line("abc", "sandbox-"+FAILED_RUN),
+                    "AUDIT_CONTAINER_ID_INVALID")
+
+    def test_duplicate_docker_id_denied(self):
+        self.denied(line() + line(), "AUDIT_DUPLICATE_CONTAINER_ID")
+
+    def test_unicode_invalid_denied(self):
+        self.denied(b"\xff\xfe", "AUDIT_OUTPUT_INVALID")
+
+    def test_output_limit_denied(self):
+        self.denied(b"x" * (audit.MAX_OUTPUT_BYTES + 1),
+                    "AUDIT_OUTPUT_BOUNDS_DENIED")
+
+    def test_record_limit_denied(self):
+        self.denied(line() * (audit.MAX_CONTAINERS + 1),
+                    "AUDIT_TOO_MANY_CONTAINERS")
+
+    def test_name_and_label_size_denied(self):
+        self.denied(line(CID, "n" * 1025),
+                    "AUDIT_DOCKER_FIELDS_INVALID")
+        self.denied(line(CID, "name", "a"*8193),
+                    "AUDIT_DOCKER_FIELDS_INVALID")
+
+    def test_invalid_unknown_state_is_redacted(self):
+        r = self.parsed(line(CID, "sandbox-"+FAILED_RUN,
+                             "", "state-secret-value"))
+        self.assertEqual(r["candidates"][0]["state"], "unknown")
+        self.assertNotIn("state-secret-value", str(r))
+
+
+class LocalHostCommandContract(unittest.TestCase):
+    def run_mock(self, *, argv_result=None):
+        if os.geteuid() == 0:
+            self.skipTest("local host audit must refuse root")
+        good = line(CID, "sandbox-"+FAILED_RUN)
+        mock_result = argv_result or subprocess.CompletedProcess(
+            audit.FIXED_DOCKER_COMMAND, 0, good, b"")
+        with patch.object(audit.subprocess, "run",
+                          return_value=mock_result) as run:
+            result = audit.inspect_host(FAILED_RUN)
+        self.assertEqual(run.call_count, 1)
+        argv = run.call_args.args[0]
+        self.assertEqual(argv, audit.FIXED_DOCKER_COMMAND)
+        self.assertIn("container", argv)
+        self.assertIn("ls", argv)
+        self.assertNotIn("rm", argv)
+        self.assertNotIn("prune", argv)
+        self.assertNotIn("stop", argv)
+        self.assertNotIn("--filter", argv)
+        self.assertIn("unix:///var/run/docker.sock", argv)
+        self.assertEqual(run.call_args.kwargs["timeout"],
+                         audit.TIMEOUT_SECONDS)
+        self.assertEqual(run.call_args.kwargs["stdin"],
+                         subprocess.DEVNULL)
+        self.assertEqual(run.call_args.kwargs["stderr"],
+                         subprocess.DEVNULL)
+        self.assertNotIn("DOCKER_HOST", run.call_args.kwargs["env"])
+        self.assertFalse(result["container_removal_authorized"])
+        self.assertFalse(result["sandbox_test_retry_authorized"])
+
+    def test_exact_argv_and_redacted_output(self):
+        self.run_mock()
+
+    def test_nonzero_docker_exit_is_blocked(self):
+        if os.geteuid() == 0:
+            self.skipTest("local audit root denial")
+        bad = subprocess.CompletedProcess(
+            audit.FIXED_DOCKER_COMMAND, 2, b"", b"opaque daemon error")
+        with patch.object(audit.subprocess, "run",
+                          return_value=bad):
+            with self.assertRaisesRegex(audit.HostAuditDenied,
+                                        "AUDIT_DOCKER_QUERY_FAILED"):
+                audit.inspect_host(FAILED_RUN)
+
+    def test_invalid_run_id_does_not_contact_docker(self):
+        with patch.object(audit.subprocess, "run") as proc:
+            with self.assertRaises(audit.HostAuditDenied):
+                audit.inspect_host("NOT-AN-ID")
+            proc.assert_not_called()
+
+
+class LocalHostOneShotCliTests(unittest.TestCase):
+    def test_no_args_reads_exact_historical_failed_run(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        output = StringIO()
+        expected = audit.classify_inventory(b"", audit.HISTORICAL_FAILED_RUN)
+        with patch.object(audit, "inspect_host", return_value=expected) as inspect:
+            with redirect_stdout(output):
+                code = audit.main([])
+        self.assertEqual(code, 0)
+        inspect.assert_called_once_with(audit.HISTORICAL_FAILED_RUN)
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["run_id"], audit.HISTORICAL_FAILED_RUN)
+        self.assertFalse(report["historical_cleanup_receipt_resolved"])
+        self.assertFalse(report["sandbox_test_retry_authorized"])
+        self.assertFalse(report["container_removal_authorized"])
+
+    def test_any_arg_rejected_without_query(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        for arg in ("--cleanup", "--run-id", "--help", "-h", "rm"):
+            with self.subTest(arg=arg):
+                output = StringIO()
+                with patch.object(audit, "inspect_host") as inspect:
+                    with redirect_stdout(output):
+                        code = audit.main([arg])
+                    inspect.assert_not_called()
+                self.assertEqual(code, 2)
+                report = json.loads(output.getvalue())
+                self.assertEqual(report["status"], "AUDIT_BLOCKED")
+                self.assertFalse(report["sandbox_test_retry_authorized"])
+
+    def test_docker_errors_become_redacted_denial(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        output = StringIO()
+        with patch.object(audit, "inspect_host",
+                          side_effect=audit.HostAuditDenied(
+                              "DOCKER_ERROR_WITH_SUPPRESSED_SECRET")):
+            with redirect_stdout(output):
+                code = audit.main([])
+        self.assertEqual(code, 2)
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["reason"], "AUDIT_LOCAL_HOST_QUERY_NOT_VERIFIED")
+        self.assertFalse(report["historical_cleanup_receipt_resolved"])
+        self.assertNotIn("SUPPRESSED_SECRET", output.getvalue())
+
+    def test_standalone_entrypoint_is_exact_and_import_only_by_default(self):
+        import ast
+        from pathlib import Path
+        source = Path(audit.__file__).read_text()
+        tree = ast.parse(source)
+        self.assertEqual(audit.HISTORICAL_FAILED_RUN,
+                         "b901aaabbbcccdddeeefff0000000020")
+        self.assertIn('if __name__ == "__main__":', source)
+        self.assertIn("raise SystemExit(main())", source)
+        self.assertFalse(any(isinstance(n, ast.Call) and
+                         isinstance(n.func, ast.Name) and
+                         n.func.id in {"eval", "exec"} for n in ast.walk(tree)))
+
+
+if __name__ == "__main__":
+    unittest.main()

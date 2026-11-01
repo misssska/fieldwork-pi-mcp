@@ -1,0 +1,127 @@
+name: M11 cleanup candidate real Docker isolated smoke
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/sandbox_cleanup_overlay.py
+      - tests/test_sandbox_cleanup_overlay.py
+      - .github/workflows/m11-cleanup-real-docker.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m11-cleanup-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-docker-cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise generated cleanup code against a real, temporary Docker host
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          docker info --format '{{.ServerVersion}}' >/dev/null
+          docker pull alpine:3.21 >/dev/null
+          export M11_TEST_NAME="fieldwork-m11-ci-${{ github.run_id }}"
+          cleanup() {
+            docker container rm -f "$M11_TEST_NAME" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          python3 - <<'PY'
+          import os
+          import re
+          import runpy
+          import subprocess
+
+          name = os.environ["M11_TEST_NAME"]
+          assert re.fullmatch(r"fieldwork-m11-ci-[0-9]+", name)
+
+          # Synthetic source only; NOT the locally installed Pi MCP bytes.
+          spec = runpy.run_path("tests/test_sandbox_cleanup_overlay.py")
+          synthetic = spec["candidate"]()["candidate_source"]
+          symbols = {}
+          exec(compile(synthetic, "m11_synthetic_generated.py", "exec"), symbols)
+          run_command = symbols["run_command"]
+
+          def docker(*args):
+              out = subprocess.run(["docker", *args], shell=False,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.DEVNULL,
+                                   timeout=25, check=False)
+              return out.returncode, out.stdout.decode("utf-8", "replace")
+
+          class Runner:
+              DOCKER_BIN = "docker"
+              def __init__(self, *, deny_rm=False, deny_ps=False):
+                  self.deny_rm = deny_rm
+                  self.deny_ps = deny_ps
+                  self.calls = []
+              def _run(self, argv, **opts):
+                  assert argv[0] == self.DOCKER_BIN
+                  self.calls.append(argv)
+                  if argv[1:4] == ["rm", "-f", name]:
+                      if self.deny_rm:
+                          return 1, "blocked for synthetic negative case"
+                      return docker(*argv[1:])
+                  assert argv[1:] == [
+                      "container", "ls", "--all", "--filter", f"name=^/{name}$",
+                      "--format", "{{.ID}}",
+                  ]
+                  if self.deny_ps:
+                      self.deny_ps = False
+                      return 1, "simulated daemon error"
+                  return docker(*argv[1:])
+
+          def cleanup_result(runner):
+              receipt = run_command(runner, name, [])
+              assert len(receipt) == 1
+              assert receipt[0]["object"] == "test_container"
+              assert len(runner.calls) in (2, 3)
+              assert all(c[0] == "docker" for c in runner.calls)
+              return receipt[0]["ok"]
+
+          # Case 1: stopped synthetic container, explicit rm -f succeeds.
+          assert docker("container", "create", "--network", "none", "--name",
+                        name, "alpine:3.21", "true")[0] == 0
+          good = Runner()
+          assert cleanup_result(good) is True
+          assert len(good.calls) == 3
+          assert docker("container", "inspect", name)[0] != 0
+          print("M11_REAL_DOCKER_REMOVED_AND_DOUBLE_ABSENCE_PASS")
+
+          # Case 2: --rm has already removed container before explicit rm.
+          assert docker("container", "run", "--rm", "--network", "none",
+                        "--name", name, "alpine:3.21", "true")[0] == 0
+          good = Runner()
+          assert cleanup_result(good) is True
+          assert len(good.calls) == 3
+          print("M11_REAL_DOCKER_AUTOREMOVE_RACE_PASS")
+
+          # Case 3: simulate rm failure against an actually present container:
+          # two probes must not misclassify it as removed.
+          assert docker("container", "create", "--network", "none", "--name",
+                        name, "alpine:3.21", "true")[0] == 0
+          denied = Runner(deny_rm=True)
+          assert cleanup_result(denied) is False
+          assert len(denied.calls) == 2
+          assert docker("container", "inspect", name)[0] == 0
+          assert docker("container", "rm", "-f", name)[0] == 0
+          print("M11_REAL_DOCKER_PRESENT_AFTER_RM_FAILURE_DENIED_PASS")
+
+          # Case 4: daemon/query failure must remain fail-closed even with no
+          # matching container in real Docker.
+          denied = Runner(deny_ps=True)
+          assert cleanup_result(denied) is False
+          assert len(denied.calls) == 2
+          print("M11_REAL_DOCKER_QUERY_ERROR_FAIL_CLOSED_PASS")
+
+          # No production, no Pi connection, no remote Docker socket:
+          # the GitHub runner owns and removes only its exact fixture.
+          print("M11_SYNTHETIC_ONLY_NO_PI_DEPLOY_PASS")
+          PY

@@ -1,0 +1,46 @@
+name: FieldWork M5 R7 backend receipt exact log diagnosis – native
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/fieldwork_m5r7_backend_log_diagnose.py
+      - tests/test_fieldwork_m5r7_backend_log_diagnose.py
+      - .github/workflows/fieldwork-m5r7-backend-log-diagnose.yml
+  pull_request:
+    paths:
+      - updater/fieldwork_m5r7_backend_log_diagnose.py
+      - tests/test_fieldwork_m5r7_backend_log_diagnose.py
+      - .github/workflows/fieldwork-m5r7-backend-log-diagnose.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-only-backend-log-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pin exact diagnosis script and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'bee337287cefa16583e55ff0e024f7f59e02017d59b1554f39d0730f1963c6c6  updater/fieldwork_m5r7_backend_log_diagnose.py' | sha256sum --check
+          echo 'a587a0a9ff820a3e37cdf13dc85208bd62ac9f709c64deaf028ff5148282d77a  tests/test_fieldwork_m5r7_backend_log_diagnose.py' | sha256sum --check
+      - name: Ten synthetic disclosure-negative backend receipt scenarios
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_fieldwork_m5r7_backend_log_diagnose.py' -v > "$RUNNER_TEMP/log-diagnose-tests.txt" 2>&1 || {
+            tail -n 80 "$RUNNER_TEMP/log-diagnose-tests.txt"
+            exit 1
+          }
+          tail -n 20 "$RUNNER_TEMP/log-diagnose-tests.txt"
+          grep -Eq 'Ran 10 tests in [0-9.]+' "$RUNNER_TEMP/log-diagnose-tests.txt"
+          grep -q '^OK$' "$RUNNER_TEMP/log-diagnose-tests.txt"
+          echo M5R7_BACKEND_LOG_DIAG_10_NATIVE_PASS

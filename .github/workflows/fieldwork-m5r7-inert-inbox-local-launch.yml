@@ -1,0 +1,48 @@
+name: FieldWork M5 R7 exact inert inbox – local-admin canary bridge contract
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/fieldwork_m5r7_launch_verified_inbox.py
+      - tests/test_fieldwork_m5r7_verified_inbox_native.py
+      - .github/workflows/fieldwork-m5r7-inert-inbox-local-launch.yml
+  pull_request:
+    paths:
+      - updater/fieldwork_m5r7_launch_verified_inbox.py
+      - tests/test_fieldwork_m5r7_verified_inbox_native.py
+      - .github/workflows/fieldwork-m5r7-inert-inbox-local-launch.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fieldwork-m5r7-local-inbox-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  local-admin-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: SHA-pinned Python source and synthetic tests
+        run: |
+          set -euo pipefail
+          echo '5d497288cd510bd44a218083749ba9e2b73df70656a03fc71394a1be4b5cdfaf  updater/fieldwork_m5r7_launch_verified_inbox.py' | sha256sum --check
+          echo 'f0e16bcd3346c394d3af3f29a9e60afe54e52d3c35906f293af6434e82e578a7  tests/test_fieldwork_m5r7_verified_inbox_native.py' | sha256sum --check
+          python3 -m py_compile updater/fieldwork_m5r7_launch_verified_inbox.py
+      - name: Fifteen hermetic synthetic artifact and Docker policy acceptance cases
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_fieldwork_m5r7_verified_inbox_native.py' -v > "$RUNNER_TEMP/m5r7-local-inbox-test.log" 2>&1 || {
+            tail -n 80 "$RUNNER_TEMP/m5r7-local-inbox-test.log"
+            exit 1
+          }
+          tail -n 20 "$RUNNER_TEMP/m5r7-local-inbox-test.log"
+          grep -Eq 'Ran 15 tests in [0-9.]+' "$RUNNER_TEMP/m5r7-local-inbox-test.log"
+          grep -q '^OK$' "$RUNNER_TEMP/m5r7-local-inbox-test.log"
+          echo M5_R7_LOCAL_INBOX_15_SYNTHETIC_TESTS_PASS

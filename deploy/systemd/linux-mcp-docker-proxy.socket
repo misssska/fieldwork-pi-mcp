@@ -1,0 +1,19 @@
+# M14D REFERENCE ONLY, NOT ENABLED ON REAL PI.
+# Require dedicated linux-mcp-client group, containing only unprivileged MCP.
+# Docker helper must be a separate security principal from the operator UI.
+[Unit]
+Description=Local read-only Docker projection for Linux MCP
+Documentation=https://github.com/misssska/fieldwork-pi-mcp
+
+[Socket]
+ListenStream=/run/linux-mcp-docker-proxy.sock
+FileDescriptorName=docker-ro
+SocketUser=root
+SocketGroup=linux-mcp-client
+SocketMode=0660
+Accept=no
+Service=linux-mcp-docker-proxy.service
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

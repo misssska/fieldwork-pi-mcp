@@ -1,0 +1,48 @@
+name: FieldWork private source snapshot exporter – native contract
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/fieldwork_private_source_snapshot.py
+      - tests/test_fieldwork_private_source_snapshot.py
+      - .github/workflows/fieldwork-private-snapshot-exporter.yml
+  pull_request:
+    paths:
+      - updater/fieldwork_private_source_snapshot.py
+      - tests/test_fieldwork_private_source_snapshot.py
+      - .github/workflows/fieldwork-private-snapshot-exporter.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fieldwork-private-snapshot-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  read-only-source-snapshot:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exact exported Python source SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'aa9edaff8aad781f13e519403b9caf75660a9bb4da3c18bc195c29f9893dc1c4  updater/fieldwork_private_source_snapshot.py' | sha256sum --check
+      - name: Full snapshot read-only positive and negative contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_fieldwork_private_source_snapshot.py' -v > "$RUNNER_TEMP/snapshot-tests.log" 2>&1 || {
+            tail -n 100 "$RUNNER_TEMP/snapshot-tests.log"
+            exit 1
+          }
+          tail -n 20 "$RUNNER_TEMP/snapshot-tests.log"
+          grep -Eq 'Ran 17 tests in [0-9.]+' "$RUNNER_TEMP/snapshot-tests.log"
+          grep -q '^OK$' "$RUNNER_TEMP/snapshot-tests.log"
+          echo FIELDWORK_PRIVATE_SOURCE_EXPORTER_17_TESTS_NATIVE_PASS
