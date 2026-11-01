@@ -1,0 +1,49 @@
+name: FieldWork private ZIP residual 18 syntax review – native synthetic tests
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/fieldwork_local_18_risk_review.py
+      - tests/test_fieldwork_local_18_risk_review.py
+      - .github/workflows/fieldwork-local-18-risk-review.yml
+  pull_request:
+    paths:
+      - updater/fieldwork_local_18_risk_review.py
+      - tests/test_fieldwork_local_18_risk_review.py
+      - .github/workflows/fieldwork-local-18-risk-review.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fieldwork-local-18-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  syntactic-secret-review-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exact Python tool and suite SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'f561e1af47175b4cdf328ff4d67b732de467329fdd0e64bcfb9ab5ee8b0eea1e  updater/fieldwork_local_18_risk_review.py' | sha256sum --check
+          echo 'ce2f8ab8de94c22a897d2fe8e60cfa5790d4bd1bad8e241e00e0d4dfb8eedb2d  tests/test_fieldwork_local_18_risk_review.py' | sha256sum --check
+      - name: Test 18-location AST/YAML structural triage with synthetic ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_fieldwork_local_18_risk_review.py' -v > "$RUNNER_TEMP/fieldwork-local18-tests.log" 2>&1 || {
+            tail -n 80 "$RUNNER_TEMP/fieldwork-local18-tests.log"
+            exit 1
+          }
+          tail -n 20 "$RUNNER_TEMP/fieldwork-local18-tests.log"
+          grep -Eq 'Ran 10 tests in [0-9.]+' "$RUNNER_TEMP/fieldwork-local18-tests.log"
+          grep -q '^OK$' "$RUNNER_TEMP/fieldwork-local18-tests.log"
+          echo FIELDWORK_RESIDUAL_18_LOCAL_REVIEW_10_NATIVE_TESTS_PASS
