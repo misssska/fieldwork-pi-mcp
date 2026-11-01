@@ -5,7 +5,8 @@ import unittest
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent
-sys.path.insert(0,str(ROOT))
+MODULE_DIR = ROOT if (ROOT/'m8_security_overlay.py').is_file() else ROOT.parent/'updater/m8_security'
+sys.path.insert(0,str(MODULE_DIR))
 from m8_security_overlay import (once, PatchStop, main_patch, team_patch,
                                  app_patch, api_patch, projects_patch,
                                  old_team_test_patch, PATCHERS, apply)
@@ -27,7 +28,7 @@ class M8NegativeSourceGate(unittest.TestCase):
             apply('/opt/fieldwork/server/app/main.py',b'irrelevant')
     def test_team_exact_real_module(self):
         # CI repo path vs local package source.
-        candidates=[ROOT/'team_api.py',ROOT.parent/'fieldwork_stabledev_m6/src/team_api.py']
+        candidates=[MODULE_DIR/'team_api.py',ROOT.parent/'fieldwork_stabledev_m6/src/team_api.py']
         base=next((p for p in candidates if p.is_file()),None)
         self.assertIsNotNone(base)
         raw=base.read_text()
@@ -38,7 +39,7 @@ class M8NegativeSourceGate(unittest.TestCase):
         self.assertIn("Project.id).where(Project.deleted.is_(False)",output)
         compile(output,'server/app/team_api.py','exec')
     def test_team_legacy_test_exact(self):
-        candidates=[ROOT/'test_team_m4.py',ROOT.parent/'fieldwork_stabledev_m6/src/test_team_m4.py']
+        candidates=[MODULE_DIR/'test_team_m4.py',ROOT.parent/'fieldwork_stabledev_m6/src/test_team_m4.py']
         base=next((p for p in candidates if p.is_file()),None)
         self.assertIsNotNone(base)
         raw=base.read_text()
@@ -92,7 +93,7 @@ export function Projects({ search = '' }: { search?: string }) {
         result=projects_patch(s)
         self.assertIn('canCreateRoot && <button',result)
     def test_backend_new_regression_test_valid_syntax(self):
-        p=ROOT/'test_security_m8.py'
+        p=MODULE_DIR/'test_security_m8.py'
         self.assertTrue(p.is_file())
         compile(p.read_text(),'test_security_m8.py','exec')
 
