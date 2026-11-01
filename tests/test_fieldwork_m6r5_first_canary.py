@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-SRC=Path(__file__).with_name('launch_m6_canary.py')
+SRC=Path(__file__).resolve().parents[1]/'updater/fieldwork_m6r5_first_canary_18086.py'
 spec=importlib.util.spec_from_file_location('m6r5',SRC)
 g=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(g)
