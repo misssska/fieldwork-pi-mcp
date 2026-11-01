@@ -1240,3 +1240,46 @@ A Pi élő API 200 és az aktív stage `STAGE_HEALTH_PASS`.
 - Az M5 R7 Pi-host canary **NEM INDULT**; 18085 továbbra sem bizonyítottan elérhető. Nincs teljes M4 base importált repo, M5 full-app frontend/backend PostgreSQL és élő M4 lineage gate. Az új canary **nem** kerülhet productionra.
 
 **Következő nagy mérföldkő:** exact M4 stage base read-only ellenőrzés, a teljes M5 R7 izolált integráció/fresh frontend Vitest + PostgreSQL tesztek, külön 18085 browser acceptance. Az éles `/opt/fieldwork` source/DB/konténerek, a 18081 stage és korábbi R6 anyagok nem módosíthatók ezzel a fejlesztéssel. A 107 Pi ZIP titok/licenc auditja továbbra is csak részben kész; nem szabad automatikusan GitHubra importálni. [Privát issue #1](https://github.com/misssska/fieldwork-app/issues/1) és [draft PR #2](https://github.com/misssska/fieldwork-app/pull/2) az aktuális bizonyítéklánc.
+
+
+## 29. 2026-11-01 – M5 R7 pontos előfeltétel-kapu elkészült, 18085 még nem fut
+
+A [privát M5 R7 PR #2](https://github.com/misssska/fieldwork-app/pull/2)
+komponens javítása változatlanul 7/7 valódi React/Vitest PASS
+ARM64 és x86-64 GitHub-hosted futtatókon.
+A tényleges R7 ZIP (`FieldWork_M5_R7_Concurrency_And_Isolated_Canary_20261101.zip`,
+SHA256 `71c90075deaedced316f6428a0b4325b68ab7f164b8be5d30547c2f68c8b4374`)
+újbóli helyi ellenőrzése: `M5_PACKAGE_INTEGRITY_PASS 19 files`,
+Python regressziók 40/40 PASS, az izolált FastAPI/SQLAlchemy
+fotókomment router 15/15 PASS, `bash -n launch_canary.sh` PASS.
+
+A Pi MCP nem rendelkezik host-szintű, M4 stage pathot kiolvasó
+jóváhagyott eszközzel (`shell=container_only`). A `launch_canary.sh`
+a pontos `stage-v06/parity-m4.d2DIn9Zr` base-t, a
+`team_api.py`, `PhotoGallery.tsx` és `DocumentViewer.test.tsx`
+M4 hashét, több kötelező M4 fájlt, a külön R7 projekt név
+szabad voltát, 18085 portot és fejlesztői teszteszközöket kíván meg.
+Ezeket M5 live indítás előtt **valódi Pi hoston** szükséges
+igazolni; nem kerülhető meg R6 konténerek törlésével.
+
+**Új konkrét előrelépés, tisztán read-only:**
+- [`updater/fieldwork_m5_r7_pi_preflight_readonly.sh`](https://github.com/misssska/fieldwork-pi-mcp/blob/4cb3d808ceaa71ad2a34cd4faf2e335ad9e08d8b/updater/fieldwork_m5_r7_pi_preflight_readonly.sh)
+  a publikus helper repo fenti pontos commitján.
+  Forrás SHA256 `4f6986c6e03784bf441abb47441c1017fc409ab096ef4e5bd8c4809ad41fde35`.
+- A script nem ír és nem futtat tesztet: exact M4 mappák/SHA-k,
+  plusz szükséges base fájlok, Docker read-access,
+  R7 projekt/testprojekt névütközés, 18085 bind és
+  legalább 5 GiB szabad tárhely: mind külön
+  `PASS` vagy `BLOCKED` nyugta.
+- [GitHub natív ARM/x86 preflight CI #41295201329](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41295201329):
+  **2/2 SUCCESS**, pontos SHA/szintaxis és hiányzó M4
+  base esetén negatív fail-closed ellenőrzés.
+- [Privát `fieldwork-app` egyblokkos Pi-indítási előfeltétel útmutató](https://github.com/misssska/fieldwork-app/blob/f4114e4d9b80afe7e9683bcff839cd1d720ff73f/docs/PI_M5_R7_READONLY_PREFLIGHT_HU.md).
+  Ezt a felhasználó Pi admin termináljában SHA-hitelesítve
+  egyszer futtatja; forrástartalom/titok nem hagyja el a Pi-t.
+
+**Állapot:** R7 package tesztelt izoláltan; actual Pi M4
+exact-base preflight `NOT_RUN`, M5 teljes frontend/PG
+integráció `NOT_RUN`, 18085 canary `NOT_RUNNING`.
+Production `/opt/fieldwork`, DB, futó 18081 stage,
+korábbi R6 stopped containers változatlanok.
