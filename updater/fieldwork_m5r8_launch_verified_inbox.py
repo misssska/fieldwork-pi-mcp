@@ -227,9 +227,16 @@ def verify_previous_log(home: Path, package: Path) -> None:
     spec.loader.exec_module(mod)
     try:
         result = mod.verify_backend(log.read_text(encoding='utf-8'))
-    except (mod.ReceiptDenied, UnicodeError, OSError):
-        # Fail closed; no traceback or raw log values.
-        deny('PREVIOUS_R7_LOG_STILL_NOT_FULLY_PROVEN_BY_R8_PARSER')
+    except mod.ReceiptDenied as exc:
+        # Gate exception messages are fixed machine codes only. Double-check
+        # their shape before exposing them; never log the original pytest data.
+        import re
+        code = str(exc)
+        if not re.fullmatch(r'M5R(?:5|8)_[A-Z0-9_]{6,80}', code):
+            code = 'RECEIPT_UNCLASSIFIED'
+        deny('PREVIOUS_R7_LOG_RECEIPT_' + code)
+    except (UnicodeError, OSError):
+        deny('PREVIOUS_R7_LOG_ENCODING_OR_READ_FAILED')
     if result.get('total_passed') != 92 or result.get('photo_comment_tests') != 5:
         deny('PREVIOUS_R7_LOG_EXPECTED_92_AND_FIVE_M5_DRIFT')
     print('M5_R8_R7_EXISTING_BACKEND_LOG=92_VERIFIED_PASSED_5_M5_PASSED')
