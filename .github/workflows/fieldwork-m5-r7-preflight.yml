@@ -1,0 +1,43 @@
+name: FieldWork M5 R7 read-only Pi readiness preflight – native contract
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/fieldwork_m5_r7_pi_preflight_readonly.sh
+      - .github/workflows/fieldwork-m5-r7-preflight.yml
+  pull_request:
+    paths:
+      - updater/fieldwork_m5_r7_pi_preflight_readonly.sh
+      - .github/workflows/fieldwork-m5-r7-preflight.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readonly-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exact SHA256 and shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '4f6986c6e03784bf441abb47441c1017fc409ab096ef4e5bd8c4809ad41fde35  updater/fieldwork_m5_r7_pi_preflight_readonly.sh' | sha256sum -c -
+          bash -n updater/fieldwork_m5_r7_pi_preflight_readonly.sh
+      - name: Empty-home synthetic negative gate; no host changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fieldwork-empty-home"
+          HOME="$RUNNER_TEMP/fieldwork-empty-home" bash updater/fieldwork_m5_r7_pi_preflight_readonly.sh > "$RUNNER_TEMP/pi-readonly-check.txt"
+          grep -q '^BLOCKED M4_stage_root$' "$RUNNER_TEMP/pi-readonly-check.txt"
+          grep -q '^BLOCKED M4_exact_source_directory$' "$RUNNER_TEMP/pi-readonly-check.txt"
+          grep -q '^M5_R7_ISOLATED_PREFLIGHT=BLOCKED:' "$RUNNER_TEMP/pi-readonly-check.txt"
+          grep -q '^NO_SOURCE_OR_CONTAINER_CHANGES_PERFORMED$' "$RUNNER_TEMP/pi-readonly-check.txt"
+          echo M5_R7_READONLY_PI_PREFLIGHT_NEGATIVE_NATIVE_PASS
