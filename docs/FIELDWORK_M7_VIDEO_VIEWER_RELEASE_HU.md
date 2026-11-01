@@ -19,3 +19,22 @@
 - Release gate: 112/112 + 103/103 Pi teljes teszt; valódi MP4 H.264 és WebM lejátszás teszt külön canary-n; jogosultság owner/editor/viewer külön identitásokkal, 403/`rejected` szerveroldalon; tárolási kvóta és későbbi backup.
 
 **Jelen csomag állapota:** offline patch-regressziók PASS; a Pi teljes M7 gate csak az admin által elindított készítést követően lesz ellenőrizhető.
+
+## R2 – 2026-11-01: pontos M6-forrás SHA-javítás
+
+A Pi-n az R1 bundle integrity és `--precheck` PASS volt, de az izolált M7 előkészítése leállt:
+`M7_STOP:UNMODIFIED_SOURCE_PIN_DRIFT:frontend/src/components/Documents.tsx`.
+A helyileg jóváhagyott read-only diagnosztika az aktuális `parity-m6._sdfbhky` jelöltet vizsgálta: 8/10 régi hash PASS, **2 DIFF**, 11/11 patch-anker PASS.
+
+Az M7 R2 kizárólag a `video_overlay.py` két rögzített SHA256 értékét változtatja:
+- `frontend/src/components/Documents.tsx` tényleges Pi SHA `a99dd1f32d240bc1540c36e7bb8977f8583b4e328825f815cc3ae7da4524e947`.
+- `frontend/src/components/TaskDetail.tsx` tényleges Pi SHA `2ef173512fc252c6f9229c1812d7ae650b473e97d0340813bb4fc792b5f3c170`.
+
+Minden más forrás- és overlayfájl az R1-ben pontosan ugyanaz maradt. Az M7 full test számok **továbbra is csak elvárt** 19/112 frontend, 103 backend, nem Pi-n igazolt eredmények. Hozzáadva két negatív regresszió: exact M6 Pi SHA-k és drift fail-closed. Offline unit **18/18 PASS**.
+
+- R2 ZIP: `FieldWork_M7_R2_Exact_M6_Pins_Video_Viewer_20261101.zip`, **18 329 byte**, SHA256 `729404125914ccd4fda521f1380e48dbbd016a0c29ad5a469bff08ae1f609fc8`.
+- Pi MCP inert transfer `729404125914ccd4fda521f1380e48db`: **VERIFIED_NOT_DEPLOYED**, Pi oldali SHA match, production_modified=false.
+- Loader: `updater/fieldwork_m7_r2_prepare_verified_inbox.py`, SHA256 `06eb8c7f537a3ea7af0d30d8a75a8a79de92bac773b2b41e39487836d80d00d5`.
+- R2 változtatás a meglévő **draft PR #5** ágában; nem új alternatív release vagy Pi-konténer. Aktív M6 18086, stabil R8 18090, éles /opt/fieldwork érintetlen.
+
+**M7 R2 teljes Pi teszt még NEM FUTOTT**, kézi admin `--precheck` és `--prepare-and-test` jóváhagyásra vár. Hiba esetén új jegyzőkönyv alapján célzottan javítandó; 18090 átállítás és Gmail import TILOS viewer-acceptance előtt.
