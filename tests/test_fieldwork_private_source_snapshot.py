@@ -52,6 +52,34 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(z.read('_FIELDWORK_PRIVATE_SOURCE_MANIFEST.json')[:1],b'{')
         self.assertEqual(report['source_files']['frontend/src/App.tsx'],hashlib.sha256(b'export const p = 3').hexdigest())
 
+
+    def test_empty_tracked_package_init_is_preserved(self):
+        # The real FieldWork Pi has server/app/__init__.py = 0 bytes.
+        p = self.root/'server/app/__init__.py'
+        p.touch()
+        self.git('add', 'server/app/__init__.py')
+        status_before = self.git('status', '--porcelain')
+        result = m.export(self.root, self.destination)
+        self.assertEqual(result['source_files']['server/app/__init__.py'],
+                         hashlib.sha256(b'').hexdigest())
+        with zipfile.ZipFile(self.destination) as z:
+            self.assertIn('server/app/__init__.py', z.namelist())
+            self.assertEqual(z.getinfo('server/app/__init__.py').file_size, 0)
+            self.assertEqual(z.read('server/app/__init__.py'), b'')
+        self.assertEqual(m.verify(self.destination)['status'],
+                         'FIELDWORK_PRIVATE_SOURCE_ARCHIVE_VERIFIED')
+        self.assertEqual(self.git('status', '--porcelain'), status_before)
+
+    def test_empty_untracked_typescript_file_is_preserved(self):
+        p = self.root/'frontend/src/Empty.test.ts'
+        p.touch()
+        before = self.git('status', '--porcelain')
+        report = m.export(self.root, self.destination)
+        self.assertEqual(report['source_files']['frontend/src/Empty.test.ts'],
+                         hashlib.sha256(b'').hexdigest())
+        self.assertEqual(self.git('status', '--porcelain'), before)
+        self.assertEqual(m.verify(self.destination)['file_count'], 7)
+
     def test_deterministic_reproducible_archive_bytes(self):
         m.export(self.root,self.destination)
         second=self.parent/'second.zip';m.export(self.root,second)
