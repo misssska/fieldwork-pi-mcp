@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           echo '5867394ce296227619eb1bc864905bb622bddbf7c7f625d6cdbc3ec49be20b76  updater/fieldwork_source_findings_triage.py' | sha256sum --check
-          echo '6cd849826a9184d5a26469e4b496b45b35d31f8997b7f11cb2995fb20f474802  tests/test_fieldwork_source_findings_triage.py' | sha256sum --check
+          echo '0a12fb195dfe4913831feaec90d491f2dc56d50ddc46d8b4aa761c25bf646991  tests/test_fieldwork_source_findings_triage.py' | sha256sum --check
       - name: All pinned triage positive and adversarial negative tests
         shell: bash
         run: |
