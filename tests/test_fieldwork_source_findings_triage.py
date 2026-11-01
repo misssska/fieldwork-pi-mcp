@@ -9,7 +9,7 @@ import unittest
 import zipfile
 from unittest import mock
 
-p = Path(__file__).with_name('fieldwork_source_findings_triage.py')
+p = Path(__file__).resolve().parents[1] / 'updater' / 'fieldwork_source_findings_triage.py'
 spec=importlib.util.spec_from_file_location('fieldwork_local_triage',p)
 m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 
