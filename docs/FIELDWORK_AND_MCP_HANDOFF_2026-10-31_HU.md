@@ -1403,3 +1403,79 @@ PostgreSQL/migráció/5 M5 tesztet, valamint a teljes
 104 frontend tesztet PASS-ra futtatni 18085 előtt.
 Production `/opt/fieldwork`, DB, konténerek,
 korábbi 18081 stage és R6/M4 forrás megőrizve.
+
+
+## 32. 2026-11-01 – valós Pi backend 92 passed/449 warnings, 90 felismerhető rekord; szigorú R8 javítás kész, ZIP MCP-n VERIFIED
+
+A felhasználó a régi Pi R7 backendlog
+`parity-m5.kTQUQUdP/m5-backend-test.log`
+értékmentes diagnosztikáját ténylegesen lefuttatta.
+Pontos SHA256:
+`98f0f2310778ae65e5ecbc747c063c6be09c10df7590fac3a209df6aa2f997e2`;
+13786 bájt. A pytest összesítésben **92 passed,
+449 warnings**, az öt M5 fotókomment API-teszt egyenként
+`PASSED`, de a régi általános regex csak **90**
+PASSED tesztsort ismert fel és a strict summary
+`[]`. `backend_verified=false`, `release_authorized=false`.
+A 90/92 eltérés nem söpörhető félre és **a tényleges
+R8 Pi-oldali regex még nem futott ezen a naplón**.
+
+**Konkrét termékjavítás M5 R8, R7 alkalmazáskódot
+megtartva:**
+- modern pytest 8 all-pass summary opcionális
+  `(0:00:27)` wallclock suffix, osztály-szintű
+  `tests/foo.py::Class::method` és szóközös
+  parametrizált node ID formák elfogadása;
+- minden backend PASSED eredmény node-azonosítója
+  egyedi és darabszáma pontosan a summary szerint,
+  5/5 kötelező M5 teszt PASSED – FAILED, SKIPPED,
+  hiány, duplikáció, 90/92 mismatch vagy duplikált
+  summary **STOP**. Nem engedélyeztük a hamis
+  `exit 0` nyugtát;
+- helyi R8 izolált regressziók: **55/55 PASS**,
+  92 passed/449 warnings szintetikus modern pytest
+  format PASS; támadó/hiányos kimenetek FAIL;
+- csomag `FieldWork_M5_R8_Strict_Pytest_Receipt_And_Isolated_Canary_20261101.zip`
+  **43009 bájt**, SHA256
+  `659915f6b42914bc9a3776ec8d6ed22e188a30b72a0dcba299db1c834265684f`,
+  20 forrásfájl + manifest, eredeti R8 ZIP unpack/replay
+  és valamennyi 20 SHA ellenőrzés PASS;
+- a valódi R8 ZIP-et **közvetlenül a Pi MCP inert
+  artefaktum-bejáratán** 3 chunkban átküldtük,
+  `transfer_id=659915f6b42914bc9a3776ec8d6ed22e`,
+  `VERIFIED_NOT_DEPLOYED`, 43009/43009 bájt,
+  `production_modified=false`; nincs kézi SCP;
+- új helyi admin által jóváhagyandó `--launch`
+  script a generic public helper repóban:
+  `updater/fieldwork_m5r8_launch_verified_inbox.py`,
+  SHA256
+  `c3f62ae10aea95c729db2831caf64ef97770ee9304ca25c9de40cc70a75d29f8`,
+  commit `2d922ffd30bd72093d3d83c36ce86abc046768cf`.
+  Az eredeti R7 log exact SHA+**92 node/5 M5**
+  R8 általi átvizsgálása megelőzi a Docker
+  indítást; hiány esetén STOP és csak gépi
+  hibakód. Siker esetén az eredeti M4 source,
+  a teljes frontend, az izolált PostgreSQL,
+  migráció és 5 M5 test **friss** ellenőrzése
+  megelőzi a külön R8 18085 canary-t;
+- Docker-projekt külön névtérben
+  `fieldwork-parity-m5-r8` és
+  `fieldwork-parity-m5-r8-test`;
+  R7/R6/éles/18081 konténerekhez nem nyúl;
+- független natív Linux/x86 és ARM64 R8 launch helper
+  teszt [GitHub Actions #41301756120](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41301756120):
+  **18/18 PASS mindkét platformon**;
+- [privát egyblokkos Pi guide](https://github.com/misssska/fieldwork-app/blob/c07ac5f228c096be992eb5a7aafa7b235c294c83/docs/PI_M5_R8_VERIFIED_92_PYTEST_CANARY_HU.md),
+  [M5 draft PR #2](https://github.com/misssska/fieldwork-app/pull/2).
+
+**Kiadási státusz:** R7 valódi frontend
+17/17 fájl, 104/104 PASS; R7 backend
+összegzés 92 passed/449 warnings, 5/5 M5 PASSED
+de strict evidence nem elfogadott. R8 új parser
+és csomag csak **offline/szintetikus** tesztelt,
+a Pi-n **VERIFIED inert, nem deployolt**.
+R8 valós parser/full backend+PG és 18085 canary
+**NOT RUN**. A valódi Pi log alapján lehet,
+hogy az R8 is STOP-ot ad, ezt meg kell
+őrizni és konkrétan diagnosztizálni. Production
+`/opt/fieldwork`, DB és 18081 stage változatlan.
