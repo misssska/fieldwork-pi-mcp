@@ -1,0 +1,45 @@
+name: FieldWork M6 R5 isolated first canary safety (no deployment)
+on:
+  push:
+    branches: [feat/m6-r5-isolated-canary-20261101]
+    paths:
+      - updater/fieldwork_m6r5_first_canary_18086.py
+      - tests/test_fieldwork_m6r5_first_canary.py
+      - tests/test_fieldwork_m6_r6_manifest_lineage.py
+      - .github/workflows/m6-r5-canary-guard.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - updater/fieldwork_m6r5_first_canary_18086.py
+      - tests/test_fieldwork_m6r5_first_canary.py
+      - tests/test_fieldwork_m6_r6_manifest_lineage.py
+      - .github/workflows/m6-r5-canary-guard.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  negative-first:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Python compile
+        run: python -m py_compile updater/fieldwork_m6r5_first_canary_18086.py
+      - name: Offline negative safety regression tests (no Docker)
+        run: |
+          python -m unittest discover -s tests -p 'test_fieldwork_m6r5_first_canary.py' -v
+          python -m unittest discover -s tests -p 'test_fieldwork_m6_r6_manifest_lineage.py' -v
+      - name: Scope receipt
+        run: |
+          echo 'M6_R5_TESTS_ARE_OFFLINE_ONLY=YES'
+          echo 'PI_HOST_CANARY_NOT_LAUNCHED=YES'
+          echo 'NO_PRODUCTION_OR_DEV_WRITE_BY_CI=YES'
