@@ -202,10 +202,14 @@ def fresh_override(original):
     if (not any('PASSWORD' in k.upper() for k in credentials)
         or not any('PASSWORD' not in k.upper() for k in credentials)):
         deny('APPLICATION_SIGNING_OR_BOOTSTRAP_SECRET_NOT_DETECTED')
+    # Explicitly give both locally built services distinct M8-only image tags.
+    # Never retag an image used by a running M6/R8 container.
     override = {
         'services':{
             'db':{'environment':{'POSTGRES_PASSWORD':new_password}},
-            'api':{'environment':{'DATABASE_URL':uri, **credentials}},
+            'api':{'image':'fieldwork-api:m8-r3-canary',
+                   'environment':{'DATABASE_URL':uri, **credentials}},
+            'nginx':{'image':'fieldwork-web:m8-r3-canary'},
         }
     }
     auth={'mode':'private_M8_canary_only', 'admin_email':api.get('ADMIN_EMAIL'),
