@@ -880,3 +880,60 @@ a ZIP-be bekerülés és a független archive verify.
 `M5_REAL_FULL_CI_NOT_RUN`,
 `PRODUCTION_AND_STAGE_UNCHANGED`.
 A Pi health read-only API 200 és `STAGE_HEALTH_PASS`.
+
+
+## 22. 2026-11-01 – valódi Pi snapshot PASS + build-források pótlási kapu
+
+A Pi helyi termináljának felhasználó által átadott kimenete végre
+**tényleges, nem szintetikus kódexportot igazol**. A javított
+zero-byte kompatibilis exportáló
+`e66...` helyett `882fa67ecc3e72a30207f3b25e623b0d089432a9`
+commitját hash-ellenőrizve futtatták:
+- ZIP: `/home/admin/fieldwork-source-20261101-085645.zip`
+- SHA256: `f622af1b51afe15f729c1461cd5e83b7a23dbecdb0f2f2aad740781ed55fd4f6`
+- `FIELDWORK_PRIVATE_SOURCE_ARCHIVE_VERIFIED` – **99 forrásfájl**,
+  534121 forrásbájt, `source_head=592c4becceadd9780759ae06ae5a004fa74454df`;
+  `dirty_worktree=true`, `source_modified=false`,
+  `remote_push_performed=false`, `ready_to_upload=false`.
+- A ZIP a Pi-n van, bájtjai nincsenek a modellhez továbbítva.
+  Az ellenőrzés a Pi exporter helyi SHA/manifest nyugtáját
+  bizonyítja; **nem bizonyít titokmentességet vagy teljes app
+  integrációt**. Az első ZIP-et meg kell őrizni.
+
+**Új talált hiány az exporter fájl-szűrésében:** az első ZIP
+nem tartalmazott nyolc, a teljes megépítéshez potenciálisan
+szükséges forrást: `.dockerignore`, root `Dockerfile`,
+`.github/workflows/backend-tests.yml`, `nginx/Dockerfile`,
+`server/Dockerfile`, `server/Dockerfile.test`,
+`server/alembic/script.py.mako`,
+`server/scripts/rotate_admin_password.py`.
+Nem része továbbra sem a source snapshotnak az
+`.env`, DB, képfeltöltések, `reference/` és sok
+üzemeltetési backup/script; e kizárások nem lazíthatók.
+
+**Elkészült és natívan ellenőrzött új, szigorúan
+nyolc pontos kivétellel bővített read-only exporter:**
+- GitHub commit:
+  `c4e7964dd865cf49967c31d6b3600348a450e3d5`
+- Pontos SHA256:
+  `aa9edaff8aad781f13e519403b9caf75660a9bb4da3c18bc195c29f9893dc1c4`
+- [Natív CI run #41287024260](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41287024260):
+  ARM64 **17/17 PASS**, x86-64 **17/17 PASS**,
+  exact SHA és tiltó útvonal/symlink/secret regressziók.
+- Privát app repo
+  [`docs/PI_READONLY_SNAPSHOT_HU.md`](https://github.com/misssska/fieldwork-app/blob/aa30735339cde7866ce7104ffad16347c3dacd62/docs/PI_READONLY_SNAPSHOT_HU.md)
+  új SHA-hoz pinnelt, egyblokkos Pi exportáló scriptet
+  és pontos **8/8 szükséges forrás jelenlétének ellenőrzését**
+  is tartalmazza. Ne a régi Pi mentést írd felül!
+- Privát app repo [issue #1](https://github.com/misssska/fieldwork-app/issues/1)
+  naplózza a tényleges sikeres exportot és a még hiányzó
+  valódi forrásauditot/importot.
+
+**Go/no-go:** `FIRST_PI_SNAPSHOT_VERIFIED_99`,
+`SOURCE_REBUILD_COMPLETENESS_GAP_FOUND`,
+`EXPORTER_EXACT_PATH_FIX_ARM_X86_17_PASS`,
+`SECOND_PI_EXPORT_NOT_RUN`,
+`SOURCE_SECRET_AUDIT_NOT_RUN`,
+`PRIVATE_APP_REPO_SOURCE_NOT_IMPORTED`,
+`M5_REAL_VITEST_AND_POSTGRESQL_NOT_RUN`,
+`PRODUCTION_UNCHANGED`.
