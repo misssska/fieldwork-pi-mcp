@@ -1,0 +1,41 @@
+name: FieldWork stable DEV R8 gateway – local activation safety
+on:
+  push:
+    branches: [feat/stable-dev-r8-gateway-20261101]
+    paths:
+      - updater/activate_r8_stable_dev_gateway.py
+      - tests/test_r8_stable_dev_first_activation.py
+      - .github/workflows/r8-stable-dev-gateway.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - updater/activate_r8_stable_dev_gateway.py
+      - tests/test_r8_stable_dev_first_activation.py
+      - .github/workflows/r8-stable-dev-gateway.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  negative-first:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python syntax
+        run: python -m py_compile updater/activate_r8_stable_dev_gateway.py
+      - name: Run isolated tests only; never start Docker
+        run: python -m unittest discover -s tests -p 'test_r8_stable_dev_first_activation.py' -v
+      - name: Scope receipt
+        run: |
+          echo "FIRST_ACTIVATION_UNIT_ONLY=PASS"
+          echo "PI_GATEWAY_NOT_ACTIVATED=YES"
+          echo "NO_PRODUCTION_OR_STAGING_WRITE=YES"

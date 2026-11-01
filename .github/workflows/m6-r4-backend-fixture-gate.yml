@@ -1,0 +1,43 @@
+name: FieldWork M6 R4 backend email fixture safety (not deployment)
+on:
+  push:
+    branches: [feat/stable-dev-r8-gateway-20261101]
+    paths:
+      - updater/fieldwork_m6r9_r4_backend_fixture_repair.py
+      - tests/test_fieldwork_m6r9_r4_fixture_repair.py
+      - .github/workflows/m6-r4-backend-fixture-gate.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - updater/fieldwork_m6r9_r4_backend_fixture_repair.py
+      - tests/test_fieldwork_m6r9_r4_fixture_repair.py
+      - .github/workflows/m6-r4-backend-fixture-gate.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install validator only (no app DB or Docker)
+        run: python -m pip install --disable-pip-version-check email-validator==2.3.0
+      - name: Syntax check
+        run: python -m py_compile updater/fieldwork_m6r9_r4_backend_fixture_repair.py
+      - name: Run synthetic negative gate; never deploy
+        run: python -m unittest discover -s tests -p 'test_fieldwork_m6r9_r4_fixture_repair.py' -v
+      - name: Scope receipt
+        run: |
+          echo 'M6_R4_OFFLINE_12_CASES_ONLY=PASS'
+          echo 'R4_PI_BACKEND_NOT_YET_EXECUTED=YES'
+          echo 'PRODUCTION_AND_DEV_NOT_MODIFIED_BY_CI=YES'
