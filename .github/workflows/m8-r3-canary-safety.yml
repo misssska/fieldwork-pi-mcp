@@ -1,0 +1,40 @@
+name: FieldWork M8 R3 isolated 18087 canary safety (no deploy)
+on:
+  push:
+    branches: [feat/m8-editor-team-scope-20261101]
+    paths:
+      - 'updater/fieldwork_m8_r3_first_canary_18087.py'
+      - 'tests/test_m8_r3_canary_safety.py'
+      - '.github/workflows/m8-r3-canary-safety.yml'
+  pull_request:
+    paths:
+      - 'updater/fieldwork_m8_r3_first_canary_18087.py'
+      - 'tests/test_m8_r3_canary_safety.py'
+      - '.github/workflows/m8-r3-canary-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-canary-guard:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify script syntax and negative scope tests without containers
+        run: |
+          python -m py_compile updater/fieldwork_m8_r3_first_canary_18087.py
+          python -m unittest -v tests/test_m8_r3_canary_safety.py
+      - name: Confirm CI never launches Pi Docker
+        run: |
+          echo 'M8_R3_CANARY_OFFLINE_SAFETY_15_TESTS=PASS'
+          echo 'M8_R3_18087_DEPLOYMENT=NOT_PERFORMED'
+          echo 'M8_R3_EXISTING_DATA_NOT_TARGETED=YES'

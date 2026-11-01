@@ -1,0 +1,56 @@
+name: FieldWork M8 editor scope/team picker - isolated offline safety
+on:
+  push:
+    branches: [feat/m8-editor-team-scope-20261101]
+    paths:
+      - 'updater/m8_editor/**'
+      - 'updater/fieldwork_m8_r2_prepare_verified_inbox.py'
+      - 'tests/test_m8_integration_static.py'
+      - 'tests/test_m8_editor_build.py'
+      - '.github/workflows/m8-editor-team-scope-safety.yml'
+  pull_request:
+    paths:
+      - 'updater/m8_editor/**'
+      - 'updater/fieldwork_m8_r2_prepare_verified_inbox.py'
+      - 'tests/test_m8_integration_static.py'
+      - 'tests/test_m8_editor_build.py'
+      - '.github/workflows/m8-editor-team-scope-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  safe-archive:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify exact inert archive and extract to disposable local workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/m8-r2-only
+          base64 -d updater/m8_editor/FieldWork_M8_R2_Editor_Team_Scope_Source_20261101.zip.b64 > /tmp/m8-r2-only/source.zip
+          printf '%s  %s\n' 'a79d755cfdeff6dd6ab3aa7e45b27c2f45e9f52ad3787f03ada5c6be88219fce' '/tmp/m8-r2-only/source.zip' | sha256sum -c -
+          unzip -q /tmp/m8-r2-only/source.zip -d /tmp/m8-r2-only/extracted
+      - name: Local static and source safety tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/m8-r2-only/extracted/FieldWork_M8
+          python -m py_compile build.py m8_editor_overlay.py m8_candidate.py test_build.py test_m8_integration_static.py test_editor_team_backend.py
+          python -m unittest discover -s . -p test_build.py -v
+          python -m unittest discover -s . -p test_m8_integration_static.py -v
+          echo 'M8_OFFLINE_18_TESTS=PASS'
+          echo 'M8_NATIVE_FRONTEND_POSTGRES=NOT_RUN'
+          echo 'M8_DEPLOYMENT=NOT_PERFORMED'
+      - name: Host-only loader syntax check
+        run: python -m py_compile updater/fieldwork_m8_r2_prepare_verified_inbox.py

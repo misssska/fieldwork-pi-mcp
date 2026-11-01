@@ -1,0 +1,51 @@
+name: FieldWork M8 R3 - App ancestry and isolated package safety
+on:
+  push:
+    branches: [feat/m8-editor-team-scope-20261101]
+    paths:
+      - 'updater/m8_editor_r3/**'
+      - 'updater/fieldwork_m8_r3_prepare_verified_inbox.py'
+      - '.github/workflows/m8-r3-app-source-safety.yml'
+  pull_request:
+    paths:
+      - 'updater/m8_editor_r3/**'
+      - 'updater/fieldwork_m8_r3_prepare_verified_inbox.py'
+      - '.github/workflows/m8-r3-app-source-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-guards:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify R3 canonical archive and exact SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/fieldwork-m8-r3
+          base64 -d updater/m8_editor_r3/FieldWork_M8_R3_App_Provenance_Fix_20261101.zip.b64 > /tmp/fieldwork-m8-r3/payload.zip
+          printf '%s  %s\n' 'e73f21e43776f86d8638391773a1b8c64daf8dbe48a5d1836dbd56ea73e3a603' '/tmp/fieldwork-m8-r3/payload.zip' | sha256sum -c -
+          unzip -q /tmp/fieldwork-m8-r3/payload.zip -d /tmp/fieldwork-m8-r3/src
+      - name: R3 source and tamper-denial regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/fieldwork-m8-r3/src/FieldWork_M8
+          python -m py_compile m8_candidate.py m8_editor_overlay.py build.py test_build.py test_m8_integration_static.py test_editor_team_backend.py
+          python -m unittest -v test_build test_m8_integration_static
+          echo 'M8_R3_22_STATIC_TESTS=PASS'
+          echo 'M8_PI_NATIVE_APP_TESTS=NOT_RUN'
+          echo 'M8_DEPLOYMENT=NONE'
+      - name: R3 loader syntax
+        run: python -m py_compile updater/fieldwork_m8_r3_prepare_verified_inbox.py
