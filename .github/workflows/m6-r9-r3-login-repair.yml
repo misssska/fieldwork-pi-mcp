@@ -1,0 +1,40 @@
+name: FieldWork M6 R9 R3 isolated login test repair
+on:
+  push:
+    branches: [feat/stable-dev-r8-gateway-20261101]
+    paths:
+      - updater/fieldwork_m6r9_r3_repair_and_test.py
+      - tests/test_fieldwork_m6r9_r3_login_repair.py
+      - .github/workflows/m6-r9-r3-login-repair.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - updater/fieldwork_m6r9_r3_repair_and_test.py
+      - tests/test_fieldwork_m6r9_r3_login_repair.py
+      - .github/workflows/m6-r9-r3-login-repair.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-safety:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax
+        run: python -m py_compile updater/fieldwork_m6r9_r3_repair_and_test.py
+      - name: Offline scoped repair tests without Docker
+        run: python -m unittest discover -s tests -p 'test_fieldwork_m6r9_r3_login_repair.py' -v
+      - name: No deployment
+        run: |
+          echo 'OFFLINE_UNIT_GATE_ONLY=PASS'
+          echo 'PI_CANDIDATE_UNCHANGED_BY_CI=YES'
