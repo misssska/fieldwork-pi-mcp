@@ -984,3 +984,56 @@ a valós Pi ZIP-en:**
 `PRIVATE_APP_SOURCE_IMPORT_NOT_RUN`;
 `REAL_M5_VITEST_PG_CANARY_NOT_RUN`;
 `PRODUCTION_AND_STAGING_UNCHANGED`.
+
+
+## 24. 2026-11-01 – Valódi Pi 107 fájlos ZIP titokaudit: 34 heurisztikus jelzés, LOCAL_TRIAGE_PENDING
+
+Az új, helyben futtatott `fieldwork_private_archive_audit.py` valódi
+forrás- és manifest-hitelesítése **PASS**:
+`SOURCE_STRUCTURE_AND_SHA_PASS`, 107 fájl,
+541288 bájt, SHA256
+`6ed1902f0c7df48ef61841f5dafe2a2d04463ce7168e276decc42d7a2c0e8195`,
+14 kötelező forrás jelen, `production_modified=false`,
+`git_push_performed=false`, `ready_to_upload=false`.
+
+**34/34 pontosan `suspicious_assignment` heurisztikus
+jelzés**, egyik sem erősebb ismert token-, privátkulcs-
+vagy jelszavas adatbázis-URI minta. Ez önmagában
+semmilyen tényleges titok jelenlétét vagy hiányát
+nem bizonyítja. Érintett a backend CI és test Compose
+konfigurációja, valamint model, init_db, admin-password-rotation
+és backend tesztforrások. A Pi read-only MCP több
+érintett sort kitakar, a `rotate_admin_password.py`
+teljes tartalmát `PATH_DENIED` tiltja.
+**Távoli olvasatból a 34 találatot nem lehet
+bizonyítottan ártalmatlannak minősíteni.**
+
+**Elkészült, tesztelt továbblépés:** generikus
+`updater/fieldwork_source_findings_triage.py` read-only
+osztályozó, amely kizárólag ugyanazt a pontos
+ZIP SHA256-ot és az eredeti auditor
+`86a1e4dc8edf86e41ea39e57f78ccd31e26864c8d70cbe7b0775f421a530ad4e`
+SHA-ját fogadja el. Az eredeti 34 találat
+útvonal/sor párját megköveteli, értékeket **nem ír
+ki**, csoportosítja a konfigurációs hivatkozásokat,
+tesztadatként szereplő értékadásokat, közvetlen
+literálokat és nem egyértelmű sorokat, és mindenre
+`review_required=true`, `ready_to_upload=false`.
+- Osztályozó SHA256:
+  `5867394ce296227619eb1bc864905bb622bddbf7c7f625d6cdbc3ec49be20b76`
+- [Natív GitHub Actions #41288501457](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41288501457):
+  ARM64 **12/12 PASS**, x86-64 **12/12 PASS**, SHA-pinnelt
+  tool és teszt kód; szintetikus ZIP tamper/secret-szivárgás
+  negatív próbák. A kezdeti CI tesztútvonal-hiba
+  `tests/` vs. `updater/` javítva, végső 2/2 PASS.
+- [Privát FieldWork Pi egyblokkos osztályozási útmutató](https://github.com/misssska/fieldwork-app/blob/8d5482dfeb7994525cff83888ec3775fb7b4e991/docs/PI_SOURCE_FINDINGS_TRIAGE_HU.md)
+  szerint kizárólag a helyi ZIP-et olvasó script
+  és értékmentes JSON szükséges.
+- [Privát `fieldwork-app` issue #1](https://github.com/misssska/fieldwork-app/issues/1) az audit PASS
+  és továbbra is blokkolt forrásimport állapotával frissítve.
+
+**Még nem kész:** a 34 jelzés tényleges osztályozása
+a Pi ZIP bájtjain még nem történt meg, kézi
+secret/licenc/PII review sincs; GitHub privát forrásimport,
+valódi M5 TS/ESLint/Vitest, PostgreSQL és Pi M5 canary
+`NOT_RUN`. Production/staging változatlan.
