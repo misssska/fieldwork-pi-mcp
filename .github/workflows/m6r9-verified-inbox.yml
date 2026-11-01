@@ -1,0 +1,41 @@
+name: FieldWork M6 R9 verified inbox admission (no deployment)
+on:
+  push:
+    branches: [feat/stable-dev-r8-gateway-20261101]
+    paths:
+      - updater/fieldwork_m6r9_prepare_verified_inbox.py
+      - tests/test_fieldwork_m6r9_verified_inbox.py
+      - .github/workflows/m6r9-verified-inbox.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - updater/fieldwork_m6r9_prepare_verified_inbox.py
+      - tests/test_fieldwork_m6r9_verified_inbox.py
+      - .github/workflows/m6r9-verified-inbox.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  admission:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax
+        run: python -m py_compile updater/fieldwork_m6r9_prepare_verified_inbox.py
+      - name: Offline manifest / bounded-stage / DB negative tests
+        run: python -m unittest discover -s tests -p 'test_fieldwork_m6r9_verified_inbox.py' -v
+      - name: Explicit evidence scope
+        run: |
+          echo 'M6_R9_ADMISSION_UNIT_ONLY=PASS'
+          echo 'PI_APP_NOT_DEPLOYED=YES'
+          echo 'NO_REMOTE_HOST_EXECUTION=YES'
