@@ -64,6 +64,10 @@ class CanaryGate(TestCase):
         self.assertNotEqual(self.cfg['services']['db']['environment']['POSTGRES_PASSWORD'],'oldpassword')
         self.assertEqual(self.auth['admin_email'],'admin@fieldwork.local')
 
+    def test_override_has_distinct_built_image_tags(self):
+        self.assertEqual(self.overlay['services']['api']['image'],'fieldwork-api:m8-r3-canary')
+        self.assertEqual(self.overlay['services']['nginx']['image'],'fieldwork-web:m8-r3-canary')
+
     def test_signing_secret_must_rotate(self):
         self.cfg['services']['api']['environment']['JWT_SECRET']='oldsigning'
         self.denied('AUTH_SECRET_REUSED')
