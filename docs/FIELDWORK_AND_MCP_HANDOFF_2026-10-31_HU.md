@@ -1222,3 +1222,21 @@ M4 stage-lineage és M5 R6 overlay nem azonos
 a Pi `/opt/fieldwork` eredeti 107-forráskészletével.
 M5 FULL CI, PostgreSQL/migráció/canary még **NOT_RUN**.
 A Pi élő API 200 és az aktív stage `STAGE_HEALTH_PASS`.
+
+
+## 28. 2026-11-01 – FieldWork M5 R7 valódi frontend-funkció javítva, natív React PASS, biztonságos külön canary-csomag
+
+**Új tényleges M5 alkalmazáskód:** a `PhotoGallery.tsx` fotókomment overlay `viewEpoch` felhasználásával eldobja a bezárás/újranyitás után visszatérő elavult GET, lapozási és POST eredményeket. A korábbi panel nem módosíthatja az új panel listáját, számlálóját, busy/error állapotát; újranyitáskor a busy jelzők törlődnek. A POST request-id idempotenciája megmarad.
+
+**Privát GitHub fejlesztési ág és PR:** `misssska/fieldwork-app` `feat/m5-r7-component-race-20261101`, [draft PR #2](https://github.com/misssska/fieldwork-app/pull/2). A privát `m5-r7-harness/` az **eredeti M5 PhotoGallery React komponens** javított forrását és 7 érdemi Vitest-ügyet tartalmaz (két új race), minimális, deklarált, izolált API/type stubok mellett. A CI [run #41294068709](https://github.com/misssska/fieldwork-app/actions/runs/41294068709) **ARM64 TypeScript PASS + valódi React/Vitest 7/7 PASS**, **x86-64 TypeScript PASS + valódi React/Vitest 7/7 PASS**. Nem a teljes, importálatlan Pi/M4 alkalmazás frontendjének vizsgálata.
+
+**R7 kész, ZIP-ként hitelesített integrációs canary-jelölt:**
+- `FieldWork_M5_R7_Concurrency_And_Isolated_Canary_20261101.zip`
+- pontos **SHA256:** `71c90075deaedced316f6428a0b4325b68ab7f164b8be5d30547c2f68c8b4374`; méret **40776 bájt**
+- ZIP-ben 19 fájl (az R6 csomag 18 fájlja és az új `test_m5r7_regressions.py`), teljes új `manifest.json` minden fájl hashével; friss kibontás után `M5_PACKAGE_INTEGRITY_PASS 19 files`
+- megőrizve a ChatGPT privát Library `/FieldWork/FieldWork_M5_R7_Concurrency_And_Isolated_Canary_20261101.zip` útvonalán; **nem** ment a publikus MCP repo-ba vagy Pi productionra.
+- izolált Python regressziók: **40/40 PASS** (R3–R7); valódi új FastAPI/SQLAlchemy fotókomment modul izolált ellenőrzése **15/15 PASS**; `bash -n launch_canary.sh` PASS.
+- Az R6 leállított `fieldwork-parity-m5` Docker projektje ütközött volna a névhasználat miatt. A R7 launcher **`fieldwork-parity-m5-r7`**, külön tesztprojekt **`fieldwork-parity-m5-r7-test`**, saját frontend-képcímke **`fieldwork-frontend-gate:parity-m5-r7`**, port **18085**. A leállított R6 konténerek, kötetek, 18081 stage és production érintetlenül maradnak. A portütközés, hiányzó M4 lineage, SHA-drift és teszthibák továbbra is fail-closed STOP.
+- Az M5 R7 Pi-host canary **NEM INDULT**; 18085 továbbra sem bizonyítottan elérhető. Nincs teljes M4 base importált repo, M5 full-app frontend/backend PostgreSQL és élő M4 lineage gate. Az új canary **nem** kerülhet productionra.
+
+**Következő nagy mérföldkő:** exact M4 stage base read-only ellenőrzés, a teljes M5 R7 izolált integráció/fresh frontend Vitest + PostgreSQL tesztek, külön 18085 browser acceptance. Az éles `/opt/fieldwork` source/DB/konténerek, a 18081 stage és korábbi R6 anyagok nem módosíthatók ezzel a fejlesztéssel. A 107 Pi ZIP titok/licenc auditja továbbra is csak részben kész; nem szabad automatikusan GitHubra importálni. [Privát issue #1](https://github.com/misssska/fieldwork-app/issues/1) és [draft PR #2](https://github.com/misssska/fieldwork-app/pull/2) az aktuális bizonyítéklánc.
