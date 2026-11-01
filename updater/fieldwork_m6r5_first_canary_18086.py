@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FieldWork M6 R9: locally approved first canary launch on isolated LAN port 18086.
+"""FieldWork M6 R9 R6: locally approved first canary on isolated LAN port 18086.
 
 Only the existing, fully tested M6 candidate is used. Cannot modify /opt/fieldwork,
 R8 18085, stable gateway 18090 or stage 18081. Creates its OWN Compose project,
@@ -74,6 +74,20 @@ def read_log(name):
     return file.read_text(encoding='utf-8', errors='replace')
 
 
+def verify_overlay_pin(rel: str, receipt_sha: str, path: Path) -> None:
+    if not regular(path):
+        deny('M6_OVERLAY_FILE_MISSING_OR_UNSAFE:' + rel)
+    # The original manifest is immutable; the R4 test fixture has a known,
+    # four-address update. NEVER rewrite or blindly trust the receipt.
+    if rel == R4_ACCOUNT_TEST:
+        if receipt_sha != R4_ACCOUNT_OLD_SHA:
+            deny('M6_R4_ORIGINAL_MANIFEST_SHA_DRIFT')
+        if digest_file(path) != R4_ACCOUNT_SHA:
+            deny('M6_R4_PATCHED_TEST_SHA_DRIFT')
+    elif digest_file(path) != receipt_sha:
+        deny('M6_OVERLAY_FILE_SHA_DRIFT:' + rel)
+
+
 def verify_source_and_tests():
     if os.geteuid() == 0:
         deny('RUN_AS_NONROOT_ADMIN')
@@ -100,9 +114,7 @@ def verify_source_and_tests():
     for rel, value in pins.items():
         if not isinstance(rel, str) or not re.fullmatch(r'[a-zA-Z0-9_./-]{4,160}', rel) or '..' in Path(rel).parts:
             deny('SOURCE_OVERLAY_PATH_INVALID')
-        path = CAND / rel
-        if not regular(path) or digest_file(path) != value:
-            deny('M6_OVERLAY_FILE_SHA_DRIFT:' + rel)
+        verify_overlay_pin(rel, value, CAND / rel)
     for rel, sha in ORIGINAL_SOURCE_PINS.items():
         path = BASE / rel
         if not regular(path) or digest_file(path) != sha:
