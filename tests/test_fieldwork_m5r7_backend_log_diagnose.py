@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-SRC = Path(__file__).with_name('fieldwork_m5r7_backend_log_diagnose.py')
+SRC = Path(__file__).resolve().parents[1] / 'updater' / 'fieldwork_m5r7_backend_log_diagnose.py'
 spec = importlib.util.spec_from_file_location('m5r7_diag', SRC)
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
