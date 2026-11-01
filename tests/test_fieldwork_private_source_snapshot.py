@@ -80,6 +80,51 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(self.git('status', '--porcelain'), before)
         self.assertEqual(m.verify(self.destination)['file_count'], 7)
 
+    def test_exact_missing_build_and_migration_sources_are_admissible(self):
+        required = {
+            '.dockerignore',
+            'Dockerfile',
+            '.github/workflows/backend-tests.yml',
+            'nginx/Dockerfile',
+            'server/Dockerfile',
+            'server/Dockerfile.test',
+            'server/alembic/script.py.mako',
+            'server/scripts/rotate_admin_password.py',
+        }
+        self.assertEqual(set(m.ESSENTIAL_EXACT_SOURCE_FILES), required)
+        self.assertTrue(all(m.admissible(p) for p in required))
+        for rejected in (
+                '.env', '.env.example', 'nginx/Dockerfile.backup',
+                '.github/workflows/unreviewed.yml',
+                'server/scripts/reset_password.py',
+                'server/alembic/other.py.mako',
+                'reference/fieldwork-22.html',
+                'storage/uploads/customer-photo.jpg',
+                'scripts/fwcompose',
+                'frontend/src/../../.env'):
+            with self.subTest(rejected=rejected):
+                self.assertFalse(m.admissible(rejected))
+
+    def test_missing_build_and_migration_sources_preserved_in_zip(self):
+        required = sorted(m.ESSENTIAL_EXACT_SOURCE_FILES)
+        for rel in required:
+            path = self.root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("verified fixture source " + rel + "\\n")
+        self.git('add', *required)
+        before = self.git('status', '--porcelain', '--untracked-files=all')
+        result = m.export(self.root, self.destination)
+        self.assertEqual(m.verify(self.destination)['status'],
+                         'FIELDWORK_PRIVATE_SOURCE_ARCHIVE_VERIFIED')
+        with zipfile.ZipFile(self.destination) as z:
+            names = set(z.namelist())
+            self.assertTrue(set(required).issubset(names))
+            for rel in required:
+                data = z.read(rel)
+                self.assertEqual(hashlib.sha256(data).hexdigest(),
+                                 result['source_files'][rel])
+        self.assertEqual(self.git('status', '--porcelain', '--untracked-files=all'), before)
+
     def test_deterministic_reproducible_archive_bytes(self):
         m.export(self.root,self.destination)
         second=self.parent/'second.zip';m.export(self.root,second)
