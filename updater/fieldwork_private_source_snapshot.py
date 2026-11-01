@@ -108,7 +108,7 @@ def inspect(root: Path) -> tuple[list[tuple[str, bytes]], dict]:
             raise SnapshotDenied('SOURCE_OPEN_DENIED:'+rel) from None
         with os.fdopen(fd, 'rb') as handle:
             st = os.fstat(handle.fileno())
-            ensure(stat.S_ISREG(st.st_mode) and 0 < st.st_size <= MAX_FILE_BYTES,
+            ensure(stat.S_ISREG(st.st_mode) and 0 <= st.st_size <= MAX_FILE_BYTES,
                    'INVALID_FILE_SIZE_OR_TYPE:'+rel)
             byte_count += st.st_size
             ensure(byte_count <= MAX_TOTAL_BYTES, 'TOTAL_FILE_SIZE_DENIED')
