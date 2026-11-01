@@ -2,8 +2,6 @@ import unittest
 import sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
-if not (ROOT/'video_overlay.py').is_file():
-    ROOT=Path(__file__).resolve().parents[1]/'updater/m7_video'
 sys.path.insert(0,str(ROOT))
 from video_overlay import (once, SourceStop, video_main, video_nginx, video_types,
  video_viewer,video_api,video_docs,role_taskdetail,docs_existing_tests,task_existing_tests,
@@ -79,6 +77,20 @@ class M7NegativeGate(unittest.TestCase):
         for forbidden in ("['up','-d','--build'",'18090','/opt/fieldwork'):
             self.assertNotIn("subprocess.run(['docker','compose','-p','fieldwork-parity-m6-r9'",source)
         self.assertIn('M7_VIDEO_AND_VIEWER_TESTS_PASS_NO_DEPLOYMENT',source)
+    def test_r2_exact_pi_m6_document_source_pins(self):
+        # Host read-only diagnostic 2026-11-01, exact SHA256 values.
+        self.assertEqual(SOURCE_PINS['frontend/src/components/Documents.tsx'],
+            'a99dd1f32d240bc1540c36e7bb8977f8583b4e328825f815cc3ae7da4524e947')
+        self.assertEqual(SOURCE_PINS['frontend/src/components/TaskDetail.tsx'],
+            '2ef173512fc252c6f9229c1812d7ae650b473e97d0340813bb4fc792b5f3c170')
+
+    def test_r2_changed_content_still_fails_closed(self):
+        from video_overlay import patch_existing
+        with self.assertRaisesRegex(SourceStop, 'M7_SOURCE_HASH_DRIFT'):
+            patch_existing('frontend/src/components/Documents.tsx',
+                           b'not-the-verified-M6-Documents.tsx-source',
+                           SOURCE_PINS['frontend/src/components/Documents.tsx'])
+
     def test_strict_no_hardcoded_credentials_in_patch(self):
         source=(ROOT/'video_overlay.py').read_text()
         self.assertNotIn('admin/admin',source)
