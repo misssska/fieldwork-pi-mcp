@@ -1349,3 +1349,57 @@ automatikája is elkészült**, de még NEM FUTOTT a Pi-n:
 `M5_R7_CANARY_18085_NOT_RUNNING`.
 Éles `/opt/fieldwork`, DB, nginx, 18081 staging és
 az R6 leállított konténerek változatlanok.
+
+
+## 31. 2026-11-01 – M5 R7 valódi Pi full frontend 104/104 PASS; backend strict receipt STOP, 18085 továbbra nem fut
+
+Felhasználó a Pi admin terminálból **végrehajtotta** a
+`fieldwork_m5r7_launch_verified_inbox.py --launch` programot:
+ZIP SHA/19 files, külön stage-only bundle, privát Compose
+scope, három pontos M4 forrás SHA, teljes M5 integrációs
+transaction/receipt **PASS**. A megőrzött jelölt
+`/home/admin/.local/state/fieldwork-pi-mcp-v03/stage-v06/parity-m5.kTQUQUdP`.
+
+A valós Pi-n épített M5 frontend, TypeScript, ESLint és
+teljes Vitest 17/17 tesztfájllal, **104/104 PASS**
+(`M5R5_FRONTEND_VERIFIED`, `FRONTEND_TESTS=PASS`).
+**Nem** csupán 7 izolált komponens-teszt.
+
+A tényleges backend `docker compose ... run --rm --build
+... python -m pytest -v tests` shell kimenete szerint
+0-val tért vissza, de a strict `m5r5_test_gate.py`
+nem találta az elvárt egyetlen pytest success
+summaryt, és **helyesen STOP-ot adott**:
+`M5R5_BACKEND_EXACT_SUCCESS_SUMMARY_REQUIRED`,
+`M5R5_M5_TESTS_NOT_COLLECTED_OR_FAILED`,
+`M5_R7_LOCAL_TEST_OR_CANARY_FAILED_NO_RELEASE_APPROVAL`.
+Ez lehet pytest-formátum-eltérés vagy hiányzó teljes
+tesztvégrehajtás; exit 0 **nem** teljes backend PASS.
+M5 18085 nem indult. Pi read-only MCP inventoryban
+R7 konténerek nincsenek; éles `fieldwork` és
+18081 stage RUNNING, API 200/stage HEALTH PASS,
+inert R7 ZIP 40776 bytes továbbra is VERIFIED.
+
+**Előkészített következő egyetlen helyi mérés:**
+- Pontos, read-only `m5-backend-test.log` diagnosztika:
+  `updater/fieldwork_m5r7_backend_log_diagnose.py`,
+  forrás SHA256 `bee337287cefa16583e55ff0e024f7f59e02017d59b1554f39d0730f1963c6c6`,
+  GitHub commit `db575b67e27e0524c8320dcbd035dfc683b5beee`.
+- **Csak** a fenti pontos `parity-m5.kTQUQUdP`
+  fájlon engedett, 12 MB plafon, nem symlink.
+  Naplót/érzékeny adatot nem ír ki, csak pytest
+  mennyiségi metaadatokat, status kategóriákat
+  és az öt M5 kötelező teszteset whitelist-nevét.
+  Nem futtat Docker-t, tesztet, kódot, és nem ír.
+- [GitHub Actions #41300588250](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41300588250):
+  natív ARM64 10/10, x86-64 10/10 PASS.
+- [Privát egyblokkos Pi útmutató](https://github.com/misssska/fieldwork-app/blob/43826217dcf12a76bd3326fe08fcff557b5af75f/docs/PI_M5_R7_BACKEND_LOG_DIAGNOSTIC_HU.md).
+
+A backend strict kaput **nem** szabad kikapcsolni,
+nem szabad 0 shell exit alapján átereszteni.
+A valós Pi log JSON alapján R8 külön integrációs
+javítást kell készíteni, és az összes backend
+PostgreSQL/migráció/5 M5 tesztet, valamint a teljes
+104 frontend tesztet PASS-ra futtatni 18085 előtt.
+Production `/opt/fieldwork`, DB, konténerek,
+korábbi 18081 stage és R6/M4 forrás megőrizve.
