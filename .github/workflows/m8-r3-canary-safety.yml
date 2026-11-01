@@ -35,6 +35,6 @@ jobs:
           python -m unittest -v tests/test_m8_r3_canary_safety.py
       - name: Confirm CI never launches Pi Docker
         run: |
-          echo 'M8_R3_CANARY_OFFLINE_SAFETY_14_TESTS=PASS'
+          echo 'M8_R3_CANARY_OFFLINE_SAFETY_15_TESTS=PASS'
           echo 'M8_R3_18087_DEPLOYMENT=NOT_PERFORMED'
           echo 'M8_R3_EXISTING_DATA_NOT_TARGETED=YES'
