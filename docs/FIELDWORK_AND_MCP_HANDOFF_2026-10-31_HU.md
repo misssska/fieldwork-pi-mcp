@@ -1094,3 +1094,67 @@ válasza kifejezetten `no_host_shell_tool=true` és
 ZIP-auditot távolról nem kezdeményezhetünk.
 Forrás import és M5 kiadás továbbra is **BLOCKED**;
 production HTTP 200, meglévő stage egészséges.
+
+
+## 26. 2026-11-01 – Pi 34 auditjelzés VALÓDI osztályozás PASS; 18 pontos további lokális review gate
+
+A felhasználó **valóban lefuttatta a Pi-n** a SHA-pinnelt
+`fieldwork_source_findings_triage.py` eszközt a már
+fájl-/ZIP-SHA-val ellenőrzött
+`/home/admin/fieldwork-source-20261101-090356.zip` snapshoton.
+Eredmény: `LOCAL_ASSIGNMENT_TRIAGE_COMPLETE`,
+`findings_count=34`, `sensitive_values_emitted=false`,
+`production_modified=false`, `git_push_performed=false`,
+`ready_to_upload=false`.
+
+A 34 eredeti heurisztikus `suspicious_assignment`
+jelzés pontos kategóriái:
+- **16** `test_fixture_assignment_review` –
+  backend unit/integration test és `conftest.py`;
+- **18** `expression_or_unknown_assignment_review` –
+  9 CI/Compose teszt/CI-konfiguráció,
+  `server/app/models.py:16` 1,
+  `server/scripts/init_db.py:21` 1,
+  `server/scripts/rotate_admin_password.py` 7.
+  A Pi MCP a közvetlen értékeket kitakarja,
+  az admin rotation fájl olvasását `PATH_DENIED`
+  tiltja. A config/SQLAlchemy mező környezetének
+  ismerete nem igazolja a tényleges titokmentességet.
+
+A forrásimport és M5 release továbbra is BLOCKED.
+Nem történt forrás ZIP-push, production vagy staging
+módosítás.
+
+**Új, pontosan a 18 sorra koncentráló, kizárólag
+lokálisan futtatható read-only Python AST/YAML
+szintaktikai felülvizsgálat elkészült:**
+- `updater/fieldwork_local_18_risk_review.py`
+  pontos SHA256
+  `f561e1af47175b4cdf328ff4d67b732de467329fdd0e64bcfb9ab5ee8b0eea1e`;
+- megköveteli a valódi ZIP, az előző auditor
+  és triage pontos SHA-ját, valamint a 18 konkrét
+  fájl/sorszám eredeti egyezését;
+- csak AST/YAML kifejezéstípus-címkéket,
+  fájlnevet és sorszámot közöl, forrássort,
+  titkot, literált nem; a kategóriák
+  `review_required=true`, `ready_to_upload=false`;
+- `tests/test_fieldwork_local_18_risk_review.py`
+  10 szintetikus regresszió:
+  [natív GitHub Actions #41291815490](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41291815490)
+  **10/10 PASS ARM64 + 10/10 PASS x86-64**;
+- privát FieldWork app repo
+  [egyblokkos Pi-futtatási dokumentum](https://github.com/misssska/fieldwork-app/blob/2903b3f2176a219041c1a737571a8f5927d7eaf5/docs/PI_18_FINDINGS_FINAL_STRUCTURE_REVIEW_HU.md)
+  közvetlen SHA-val hitelesített letöltéssel;
+- valós Pi ZIP-en **ez az új AST/YAML review még nem
+  futott le**. Ezt a funkciót a meglévő
+  `fieldwork-pi-mcp v0.6.1` nem tudja a
+  hoston távolról végrehajtani
+  (`no_host_shell_tool=true`).
+
+A privát `fieldwork-app` GitHub repo tartalmazza
+a 107 forrásfájl SHA256 manifestjét, de
+**az alkalmazás forrását nem**; nem szabad
+a 107 fájlos dirty Pi snapshotot azonosnak
+tekinteni a pontos M4 stage-jelölttel.
+A teljes M5 R6 frontend/PostgreSQL/canary
+**NOT_RUN**, production/stage változatlan.
