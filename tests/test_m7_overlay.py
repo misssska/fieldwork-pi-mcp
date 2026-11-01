@@ -2,6 +2,8 @@ import unittest
 import sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
+if not (ROOT/'video_overlay.py').is_file():
+    ROOT=Path(__file__).resolve().parents[1]/'updater/m7_video'
 sys.path.insert(0,str(ROOT))
 from video_overlay import (once, SourceStop, video_main, video_nginx, video_types,
  video_viewer,video_api,video_docs,role_taskdetail,docs_existing_tests,task_existing_tests,
