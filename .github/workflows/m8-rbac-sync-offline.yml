@@ -1,0 +1,67 @@
+name: FieldWork M8 RBAC and sync – offline source safety, no deployment
+on:
+  push:
+    branches: [feat/m8-rbac-sync-candidate-20261101]
+    paths:
+      - 'updater/m8_security/**'
+      - 'updater/fieldwork_m8_prepare_verified_inbox.py'
+      - 'tests/test_m8_overlay.py'
+      - '.github/workflows/m8-rbac-sync-offline.yml'
+  pull_request:
+    paths:
+      - 'updater/m8_security/**'
+      - 'updater/fieldwork_m8_prepare_verified_inbox.py'
+      - 'tests/test_m8_overlay.py'
+      - '.github/workflows/m8-rbac-sync-offline.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-only:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify SHA-pinned M8 encoded source archive
+        run: |
+          base64 -d updater/m8_security/FieldWork_M8_RBAC_Sync_Isolated_20261101.zip.b64 > /tmp/fieldwork-m8.zip
+          echo 'cbd2607f1b72d3cf464cb0b1a3e18502a92b0ebcbf8ab088369c44d5a4449a09  /tmp/fieldwork-m8.zip' | sha256sum -c -
+          python - <<'PY'
+          import hashlib,json,zipfile,pathlib
+          z=zipfile.ZipFile('/tmp/fieldwork-m8.zip')
+          names=z.namelist()
+          prefix='FieldWork_M8/'
+          assert len(names)==8 and len(set(names))==8 and all(n.startswith(prefix) for n in names)
+          manifest=json.loads(z.read(prefix+'MANIFEST.json'))
+          assert manifest['kind']=='fieldwork-m8-authz-sync-isolated-v1'
+          assert manifest['not_deployed'] is True
+          assert set(manifest['sha256'])=={n[len(prefix):] for n in names}-{'MANIFEST.json'}
+          for p,d in manifest['sha256'].items():
+              data=z.read(prefix+p)
+              assert hashlib.sha256(data).hexdigest()==d,p
+              repo=pathlib.Path('updater/m8_security')/p
+              if repo.is_file() and p not in {'test_m8_overlay.py'}:
+                  assert repo.read_bytes()==data,p
+          assert pathlib.Path('updater/fieldwork_m8_prepare_verified_inbox.py').is_file()
+          print('M8_SHA_PINNED_ARCHIVE_AND_REPO_SOURCE_CONSISTENT=PASS')
+          PY
+      - name: Python compile (not an application integration test)
+        run: |
+          python -m py_compile updater/m8_security/*.py updater/fieldwork_m8_prepare_verified_inbox.py
+      - name: Security source negative regression
+        run: python -m unittest discover -s tests -p 'test_m8_overlay.py' -v
+      - name: Fail-closed scope receipt
+        run: |
+          echo 'M8_OFFLINE_RBAC_PATCH_TESTS=PASS'
+          echo 'M8_NATIVE_PI_FULL_TESTS=NOT_RUN'
+          echo 'M8_LIVE_DEPLOYMENT=NOT_PERFORMED'
+          echo 'M8_PRODUCTION_AND_18090_UNTOUCHED=YES'

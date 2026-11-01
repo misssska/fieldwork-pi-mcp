@@ -1,0 +1,14 @@
+{
+  "kind": "fieldwork-m8-authz-sync-isolated-v1",
+  "not_deployed": true,
+  "sha256": {
+    "README_HU.md": "f813eefe2921e4327a15e2e9dd1bab622f780894e2cff737937ca75a20afa368",
+    "m8_candidate.py": "4097f24f4b2ea89331b692cdc6abc949aa0e34b7e25efe12f39c82ec87f6ab8a",
+    "m8_security_overlay.py": "908718d98e316337bcfb98cb48e8f10770fcdc9caa4699682153dbaa71b4869b",
+    "team_api.py": "cf1db461dd8c4fec2b055bf4c72837d50bcefd79f8b83559431d85c06e6eabe8",
+    "test_m8_overlay.py": "ce5531aee461580478539fd7857c3c60037c6023547bd13868a5b405301b6b7c",
+    "test_security_m8.py": "9e380a6cbd5a9657bc11591c4d4bc25f57ed14579d61a7da0bf1c03b1335340d",
+    "test_team_m4.py": "49139da653c5486a3463ed762271f144c79bd8b825352610d1e9b782cd1ac254"
+  },
+  "source_m7": "parity-m7-video.7bc9a74m"
+}
