@@ -1283,3 +1283,69 @@ exact-base preflight `NOT_RUN`, M5 teljes frontend/PG
 integráció `NOT_RUN`, 18085 canary `NOT_RUNNING`.
 Production `/opt/fieldwork`, DB, futó 18081 stage,
 korábbi R6 stopped containers változatlanok.
+
+
+## 30. 2026-11-01 – Pi M5 R7 preflight PASS és 40 776 bájtos ZIP tényleges MCP-upload VERIFIED, nincs több SCP
+
+A felhasználó admin Pi konzolból lefuttatta a SHA-pinnelt
+`fieldwork_m5_r7_pi_preflight_readonly.sh` ellenőrzőt.
+Eredmény **`M5_R7_ISOLATED_PREFLIGHT=PASS`**:
+a pontos `stage-v06/parity-m4.d2DIn9Zr` M4 alap,
+`team_api.py`, `PhotoGallery.tsx`,
+`DocumentViewer.test.tsx` forrás-SHA256, 8 kötelező
+fájl, Docker-read, külön R7/test projektnevek,
+18085 port és 5GiB disk ellenőrzése mind PASS.
+Ez a Pi-host előfeltételek első valódi, teljes sikeres
+ellenőrzése, **nem** a full app teszt.
+
+**MCP-n valóban végrehajtott, eredményével igazolt
+új képesség:** a ChatGPT Library eredeti
+`FieldWork_M5_R7_Concurrency_And_Isolated_Canary_20261101.zip`
+csomagját 3 egymás utáni pontos base64 darabbal,
+az MCP `fieldwork_artifact_begin`, `append`,
+`finalize`, `status` eszközeivel feltöltöttük az
+admin Pi privát, **inert** artefaktum-tárolójába.
+A Pi végső nyugtája:
+- `transfer_id=71c90075deaedced316f6428a0b4325b`;
+- `received_bytes=40776`, `expected_bytes=40776`;
+- `sha256=71c90075deaedced316f6428a0b4325b68ab7f164b8be5d30547c2f68c8b4374`;
+- `status=VERIFIED_NOT_DEPLOYED` az ellenőrzéskor,
+  későbbi `artifact_status=VERIFIED`,
+  `executable=false`, `production_modified=false`.
+- NINCS kézi SCP, a ZIP-et nem kell újra másolni.
+  A transzferhez használt ideiglenes base64 Library
+  segédet sikeres feltöltés után töröltük.
+
+**A tényleges, helyben engedélyezett canary-indítás
+automatikája is elkészült**, de még NEM FUTOTT a Pi-n:
+- `updater/fieldwork_m5r7_launch_verified_inbox.py`,
+  SHA256 `5d497288cd510bd44a218083749ba9e2b73df70656a03fc71394a1be4b5cdfaf`,
+  commit `098dc8c0fb8aa5601df24370b4e6729a017c623f`;
+- csak az admin `$HOME/.local/state` + `.local/share`
+  gyökerében keresi az **egyetlen pontos SHA-bájt**
+  R7 csomagot, 20 ZIP member és 19 SHA manifest
+  ellenőrzésével külön `stage-v06` R7 csomaghelyre
+  bontja, megismétléskor driftet tilt;
+- a Python `docker compose config` előellenőrzés
+  tiltja az ismeretlen szolgáltatást, host bind
+  mountot, external network/volume, host privileged
+  módot, eltérő 18085 publish IP-t és
+  a Compose `db:5432` címtől eltérő PostgreSQL-t;
+- **egy kifejezett helyi `python3 ... --launch`**
+  admin parancs indíthatja az R7 csomag SAJÁT
+  teljes frontend/PG/migration gate-jét. Az MCP
+  továbbra is `no_host_shell_tool=true`,
+  nem kerüljük meg a helyi jóváhagyási korlátot.
+- Natív [GitHub CI #41297610220](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41297610220)
+  **ARM64 15/15 + x86-64 15/15 szintetikus PASS**;
+  eredeti R7 ZIP-pel a lokális fejlesztői környezetben
+  **15/15 teszt PASS**, de ez nem Pi production/canary.
+- [Privát, egyblokkos helyi futtatási dokumentum](https://github.com/misssska/fieldwork-app/blob/61854804e1cdb25c968f79f47abdf7100a5b1074/docs/PI_M5_R7_VERIFIED_INBOX_LOCAL_CANARY_LAUNCH_HU.md).
+
+**Állapot**: `M5_R7_PI_M4_PREFLIGHT_PASS`,
+`M5_R7_PI_INERT_ZIP_TRANSFER_VERIFIED`,
+`M5_R7_LOCAL_LAUNCHER_TESTED`,
+`M5_R7_FULL_FRONTEND_PG_ON_PI_NOT_RUN`,
+`M5_R7_CANARY_18085_NOT_RUNNING`.
+Éles `/opt/fieldwork`, DB, nginx, 18081 staging és
+az R6 leállított konténerek változatlanok.
