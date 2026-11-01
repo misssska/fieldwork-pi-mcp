@@ -1,0 +1,49 @@
+name: FieldWork 34-finding local audit triage – synthetic native tests
+on:
+  push:
+    branches: [feat/artifact-inbox-no-manual-copy-20261030]
+    paths:
+      - updater/fieldwork_source_findings_triage.py
+      - tests/test_fieldwork_source_findings_triage.py
+      - .github/workflows/fieldwork-source-findings-triage.yml
+  pull_request:
+    paths:
+      - updater/fieldwork_source_findings_triage.py
+      - tests/test_fieldwork_source_findings_triage.py
+      - .github/workflows/fieldwork-source-findings-triage.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fieldwork-findings-triage-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  triage-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exact triage source integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '5867394ce296227619eb1bc864905bb622bddbf7c7f625d6cdbc3ec49be20b76  updater/fieldwork_source_findings_triage.py' | sha256sum --check
+          echo '6cd849826a9184d5a26469e4b496b45b35d31f8997b7f11cb2995fb20f474802  tests/test_fieldwork_source_findings_triage.py' | sha256sum --check
+      - name: All pinned triage positive and adversarial negative tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_fieldwork_source_findings_triage.py' -v > "$RUNNER_TEMP/fieldwork-findings-triage-tests.log" 2>&1 || {
+            tail -n 100 "$RUNNER_TEMP/fieldwork-findings-triage-tests.log"
+            exit 1
+          }
+          tail -n 20 "$RUNNER_TEMP/fieldwork-findings-triage-tests.log"
+          grep -Eq 'Ran 12 tests in [0-9.]+' "$RUNNER_TEMP/fieldwork-findings-triage-tests.log"
+          grep -q '^OK$' "$RUNNER_TEMP/fieldwork-findings-triage-tests.log"
+          echo FIELDWORK_FINDINGS_TRIAGE_12_NATIVE_TESTS_PASS
