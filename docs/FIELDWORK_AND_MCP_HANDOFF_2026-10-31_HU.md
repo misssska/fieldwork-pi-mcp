@@ -1158,3 +1158,67 @@ a 107 fájlos dirty Pi snapshotot azonosnak
 tekinteni a pontos M4 stage-jelölttel.
 A teljes M5 R6 frontend/PostgreSQL/canary
 **NOT_RUN**, production/stage változatlan.
+
+
+## 27. 2026-11-01 – VALÓDI Pi 18/18 AST/YAML audit végrehajtva, baseline/M5 CI ágazatok elkülönítve
+
+A felhasználó végrehajtotta az előkészített
+`fieldwork_local_18_risk_review.py` parancsot a Pi-n;
+a pontos eszköz, auditor és triage SHA256 PASS.
+**Valódi 107 fájlos Pi ZIP-en**:
+`LOCAL_18_SYNTAX_REVIEW_COMPLETE`,
+`findings_examined=18`, `secret_values_emitted=false`,
+`git_push_performed=false`,
+`production_modified=false`, `ready_to_upload=false`,
+`manual_secret_and_license_review_required=true`.
+
+**Pontos kategóriák:** 9 `yaml_inline_value_review` –
+CI/tests és test/e2e Compose 3+3+3 hely;
+4 `python_annotated_field_definition_review` –
+app/model egy és admin rotation három;
+3 `python_runtime_reference_review` –
+admin rotation három;
+2 `python_function_result_review` –
+init_db egy és admin rotation egy.
+Egyik sem lett **python_direct_literal_assignment** kategória
+az adott 18 jelzésben. Ez csak AST-alapú tény,
+nem általános titokmentességi tanúsítvány.
+A korábbi 16 teszt-fixture jelzésből önmagában
+nem következik teljes biztonság.
+A tényleges YAML inline értékek és jelszóforgató
+script helyi, biztonságos felülvizsgálata még szükséges;
+a Pi MCP redaktálja ezeket a sorokat.
+
+**Automatikus privát GitHub előkészítés**, production és staging érintetlen:
+- A `misssska/fieldwork-app` privát
+  `.github/workflows/m5-full-frontend.yml` jelenleg
+  **csak `feat/m5/**` branch/pull-request** M5 source changes
+  esetén automatikus. Erre azért volt szükség,
+  mert a Pi 107 alapforrásban még nincs M5 Photos M5 test.
+  A PI-baseline import nem kaphat félrevezető M5 FAIL-t.
+- Új `misssska/fieldwork-app/.github/workflows/pi-source-baseline-receipt.yml`
+  2 natív GitHub-hosted architektúra
+  `ubuntu-24.04` + `ubuntu-24.04-arm`;
+  a privát `source-receipts/pi-source-20261101-090356.json`
+  valódi **107** forrás SHA256-manifestje alapján
+  **105** eredeti forrásfájl pontos byte-azonosságát
+  ellenőrzi; a privát repo `README.md`
+  és `.gitignore` policy-fájljai megőrzendők,
+  őket nem írja felül a Pi mentés.
+  Kódhiány/symlink/SHA mismatch/public repo → STOP.
+  **A valós forrás még nincs a privát GitHubon,
+  ezért ez a CI még nem futott valódi app-source-szal.**
+- [Privát FieldWork issue #1](https://github.com/misssska/fieldwork-app/issues/1)
+  pontos 18 soros eredménnyel és új source baseline
+  kapu állapotával frissítve.
+
+**Továbbra is fennáll:** a helyi Pi
+`/home/admin/fieldwork-source-20261101-090356.zip`
+bájtjait a kapcsolat nem tudja outbound kiolvasni,
+a MCP `no_host_shell_tool=true`;
+nem engedélyezett sem a megkerülés, sem a
+nem auditált kód automatikus publikálása.
+M4 stage-lineage és M5 R6 overlay nem azonos
+a Pi `/opt/fieldwork` eredeti 107-forráskészletével.
+M5 FULL CI, PostgreSQL/migráció/canary még **NOT_RUN**.
+A Pi élő API 200 és az aktív stage `STAGE_HEALTH_PASS`.
