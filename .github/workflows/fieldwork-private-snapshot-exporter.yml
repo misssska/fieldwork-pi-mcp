@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo '8c769a19f6ce889df58458d249c5e995d5b6f72d86f9d45a6d07a4b2735dbe94  updater/fieldwork_private_source_snapshot.py' | sha256sum --check
+          echo '924d51d7538c62c7efdf2d4ad6fb3e02d7e215ca1a194c02e431f140a48bd10a  updater/fieldwork_private_source_snapshot.py' | sha256sum --check
       - name: Full snapshot read-only positive and negative contracts
         shell: bash
         run: |
@@ -43,6 +43,6 @@ jobs:
             exit 1
           }
           tail -n 20 "$RUNNER_TEMP/snapshot-tests.log"
-          grep -Eq 'Ran 13 tests in [0-9.]+' "$RUNNER_TEMP/snapshot-tests.log"
+          grep -Eq 'Ran 15 tests in [0-9.]+' "$RUNNER_TEMP/snapshot-tests.log"
           grep -q '^OK$' "$RUNNER_TEMP/snapshot-tests.log"
-          echo FIELDWORK_PRIVATE_SOURCE_EXPORTER_13_TESTS_NATIVE_PASS
+          echo FIELDWORK_PRIVATE_SOURCE_EXPORTER_15_TESTS_NATIVE_PASS
