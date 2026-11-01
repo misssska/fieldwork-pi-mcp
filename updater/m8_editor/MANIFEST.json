@@ -1,0 +1,14 @@
+{
+  "kind": "fieldwork-m8-editor-team-scope-source-v1",
+  "not_deployed": true,
+  "sha256": {
+    "README_HU.md": "d98fcd186e680ddc642ec7efc83cecbf156671072238526d57686859e4530f68",
+    "baseline_sources.zip": "91681fad89f6efaa8bd3e4cb2f8fc676c36de7d58a4a09cf3ef3e3eed400f5d3",
+    "build.py": "1fded6b56868288cb976794022389d95d0224c1c6c9986f21e8d4e17e7d5cd8c",
+    "m8_candidate.py": "9153d24526ad0776423da87fbdac8c0f225ae8702a55d56b7417644e4c14db30",
+    "m8_editor_overlay.py": "2954cdb4d8337a318fa4b76f1829a1f8c26e0da18ab76caa207c262578ace16d",
+    "test_build.py": "dab6970c84d8c5c29639d7a2de13cfbf42df377f21542bbb641022c23c7765f5",
+    "test_editor_team_backend.py": "3d01521e12f7d0bcb2040e34c72ba73fdb184d712070e02d50f2e8a2aa9dfd65",
+    "test_m8_integration_static.py": "4e524ede7c22756ce9c8397d8fbce8bae6589b11a9fe1042ad892c524e735c7e"
+  }
+}
