@@ -937,3 +937,50 @@ nyolc pontos kivétellel bővített read-only exporter:**
 `PRIVATE_APP_REPO_SOURCE_NOT_IMPORTED`,
 `M5_REAL_VITEST_AND_POSTGRESQL_NOT_RUN`,
 `PRODUCTION_UNCHANGED`.
+
+
+## 23. 2026-11-01 – Pi 107 fájlos második teljesebb snapshot és külön privát auditkapu
+
+A felhasználó második, valódi Pi terminálnaplója alapján:
+- `/home/admin/fieldwork-source-20261101-090356.zip`,
+  teljes ZIP SHA256 `6ed1902f0c7df48ef61841f5dafe2a2d04463ce7168e276decc42d7a2c0e8195`;
+- `FIELDWORK_PRIVATE_SOURCE_ARCHIVE_VERIFIED` **107 fájl**,
+  541288 forrásbájt, `source_head=592c4becceadd9780759ae06ae5a004fa74454df`;
+- `FIELDWORK_REQUIRED_BUILD_SOURCES_PRESENT=8`,
+  Dockerfiles, Alembic template, backend CI, admin-password helper
+  mind megvan; `source_modified=false`,
+  `remote_push_performed=false`, `ready_to_upload=false`;
+- a korábbi 99 fájlos ZIP külön, változatlan megőrzendő.
+- A ZIP tartalmát a modell/connector **nem látta**:
+  csak a Pi helyi, SHA-verifikált exporter manifestjét és nyugtáját.
+  **Titok- és licencellenőrzést még nem lehet késznek nevezni.**
+
+**Következő izolált biztonsági kapu elkészült, NEM futott még
+a valós Pi ZIP-en:**
+- `updater/fieldwork_private_archive_audit.py` – standard-library-only,
+  **read-only lokális ZIP audit**, pontos ismert ZIP SHA256, source HEAD,
+  107 tag, kötelező forráslista, minden fájl manifest-SHA,
+  symlink/traversal, ZIP bomb/size szigorú korlát és ismert
+  token/jelszó/kapcsolati minta felismerés. Csak
+  fájlnév, sor és szabály kerül a jelentésbe, **titok nem**;
+  `ready_to_upload=false` még nulla találatnál is.
+- `tests/test_fieldwork_private_archive_audit.py` – 15 pozitív
+  és negatív szintetikus ZIP-integritási/secret teszt.
+- [Natív GitHub Actions #41287530034](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41287530034):
+  x86-64 és ARM64 **15/15 PASS**, program SHA256
+  `86a1e4dc8edf86e41ea39e57f78ccd31e26864c8d70cbe7b0775f421a530ad4e`.
+- [Privát app repository auditútmutató](https://github.com/misssska/fieldwork-app/blob/7ce1e3ec6a27a6f50177153135288ad56adf1114/docs/PI_SOURCE_ARCHIVE_AUDIT_HU.md)
+  egy blokkban, a `ace3f44f3c1a973995abfdbe30758d7f68451a97`
+  pontos nyilvános helper commitról SHA-verifikált
+  auditor letöltés, Pi HOME ZIP **csak olvasás**.
+- Az eredmény külön [privát app blocker issue #1](https://github.com/misssska/fieldwork-app/issues/1)
+  nyilvántartásába is bekerült.
+
+**Kiadási állapot:**
+`PI_EXPORT_107_SHA_AND_MANIFEST_PASS`;
+`DOCKER_ALEMBIC_8_FILES_PRESENT`;
+`SECRET_AND_LICENCE_MANUAL_REVIEW_PENDING`;
+`REAL_PI_ZIP_AUDITOR_NOT_RUN`;
+`PRIVATE_APP_SOURCE_IMPORT_NOT_RUN`;
+`REAL_M5_VITEST_PG_CANARY_NOT_RUN`;
+`PRODUCTION_AND_STAGING_UNCHANGED`.
