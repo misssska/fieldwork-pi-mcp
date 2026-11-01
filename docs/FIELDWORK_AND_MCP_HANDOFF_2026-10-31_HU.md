@@ -841,3 +841,42 @@ Kiadási blokk: [privát issue #1](https://github.com/misssska/fieldwork-app/iss
 Az M5 valódi frontend/PG/18085 canary tesztek
 **továbbra sem futottak**; release BLOCKED.
 Production és korábbi staging nem módosult.
+
+
+## 21. 2026-11-01 – FieldWork privát forrásexporter valódi Pi 0 bájtos fájlhiba javítása
+
+**Read-only Pi tény:** `server/app/__init__.py` létezik,
+mérete **0 bájt**, SHA256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+A korábbi exporter `ensure(stat.S_ISREG(st.st_mode) and
+0 < st.st_size <= MAX_FILE_BYTES)` feltétele minden nulla
+méretű forrásfájlt elutasított. Ez **bizonyított, determinisztikus
+hiba a Pi valós fájljával**, bár a felhasználó eredeti
+terminál tracebackje nem áll rendelkezésre; nem állítható,
+hogy minden korábbi hiba oka biztosan csak ez volt.
+
+**Javítás:** `0 <= st.st_size <= MAX_FILE_BYTES`;
+továbbra is csak normál, symlink nélküli forrásfájlok;
+az üres fájl SHA256/ZIP bytes-onkénti ellenőrzése megmaradt.
+Két új regresszió: tracked 0 bájtos Python `__init__.py`
+és untracked 0 bájtos TS; Git index/dirty status változatlanság,
+a ZIP-be bekerülés és a független archive verify.
+- A javított exporter teljes SHA256:
+  `924d51d7538c62c7efdf2d4ad6fb3e02d7e215ca1a194c02e431f140a48bd10a`
+- Git commit `882fa67ecc3e72a30207f3b25e623b0d089432a9`
+- [Natív GitHub Actions #41286226358](https://github.com/misssska/fieldwork-pi-mcp/actions/runs/41286226358):
+  ARM64 **15/15 SUCCESS**, x86-64 **15/15 SUCCESS**,
+  mindkettőn exact exportáló forrás SHA ellenőrzés.
+- A privát [javított egyblokkos Pi útmutató](https://github.com/misssska/fieldwork-app/blob/5e201efa1c19d8643d19334daaa2424d29ae2ad3/docs/PI_READONLY_SNAPSHOT_HU.md)
+  már kizárólag a javított commitra és forrás-SHA-ra pinel.
+- A felhasználó korábban futtatott, régi
+  `e66fb283...` / `8c769a19...` parancsát
+  **nem szabad megismételni**.
+
+**Állapot:** `REAL_PI_ZERO_BYTE_ROOT_CAUSE_FOUND`,
+`EXPORTER_FIX_NATIVE_ARM_X86_15_PASS`,
+`PI_EXPORT_WITH_FIX_NOT_RUN`,
+`PRIVATE_SOURCE_IMPORT_PENDING`,
+`M5_REAL_FULL_CI_NOT_RUN`,
+`PRODUCTION_AND_STAGE_UNCHANGED`.
+A Pi health read-only API 200 és `STAGE_HEALTH_PASS`.
