@@ -10,7 +10,7 @@ import unittest
 from unittest import mock
 import zipfile
 
-P = Path(__file__).with_name('fieldwork_local_18_risk_review.py')
+P = Path(__file__).resolve().parents[1] / 'updater' / 'fieldwork_local_18_risk_review.py'
 spec = importlib.util.spec_from_file_location('review18', P)
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
